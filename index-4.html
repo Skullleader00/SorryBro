@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#12142a">
+<title>CARD ARENA</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:dark;--bg:#12142a;--p:#1d2140;--l:#343a68;--g:#c9a45c;--t:#ebe9f5;--m:#9096b8;--me:#4fb3a9;--op:#e0614f;--w:min(26vw,96px)}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--t);font:15px/1.5 'Noto Sans Thai',system-ui,sans-serif;padding-bottom:env(safe-area-inset-bottom)}
+nav{display:flex;gap:2px;padding:calc(6px + env(safe-area-inset-top)) 8px 6px;background:var(--p);position:sticky;top:0;z-index:5;overflow-x:auto;border-bottom:1px solid var(--l)}
+nav b{color:var(--g);margin-right:auto;padding:6px 8px;white-space:nowrap;letter-spacing:.04em}
+nav a{padding:6px 12px;border-radius:6px;color:var(--m);cursor:pointer;white-space:nowrap}
+nav a.on{background:var(--l);color:var(--t)}
+section{max-width:760px;margin:0 auto;padding:16px}
+h1{font-size:28px;line-height:1.25;margin-bottom:8px}
+h2{font-size:18px;margin:16px 0 8px;color:var(--g)}
+p.s{color:var(--m);margin-bottom:12px}
+button,select,input,textarea{font:inherit;color:var(--t);background:var(--l);border:1px solid #4a5290;border-radius:6px;padding:7px 12px}
+button{cursor:pointer;background:var(--g);color:#1b1608;border:0;font-weight:700}
+button.o{background:var(--l);color:var(--t);font-weight:400}
+button:disabled{opacity:.4}
+button:focus-visible,input:focus-visible,select:focus-visible,.card:focus-visible{outline:2px solid var(--me)}
+.f{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;align-items:center}
+.f input,.f select{flex:1;min-width:120px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:8px;margin-top:8px}
+.card{aspect-ratio:5/7;width:100%;border-radius:8px;background:linear-gradient(160deg,#2f2a5a,#1d2140);border:1px solid var(--g);padding:5px;font-size:10px;line-height:1.3;overflow:hidden;position:relative;cursor:pointer}
+.card img{width:100%;height:100%;object-fit:cover;border-radius:5px}
+.card b{display:block;font-size:11px;color:var(--g)}
+.card i{color:var(--m);font-style:normal}
+.card s{position:absolute;right:5px;bottom:3px;text-decoration:none;font-weight:700;color:var(--op);font-size:12px}
+.bd{position:absolute;top:3px;right:3px;background:var(--me);color:#06201d;font-style:normal;font-weight:700;border-radius:10px;padding:0 6px;font-size:11px}
+#info{background:var(--p);border:1px solid var(--l);border-radius:8px;padding:12px;margin-top:12px;min-height:60px;color:var(--m)}
+.dr{display:flex;justify-content:space-between;padding:6px 10px;background:var(--p);border-radius:6px;margin-bottom:4px;cursor:pointer}
+.row{display:flex;gap:6px;justify-content:center;margin:5px 0}
+.slot{width:var(--w);aspect-ratio:5/7;border:1px dashed var(--l);border-radius:8px;background:#ffffff07}
+.slot.core{border:1px solid var(--g);background:#c9a45c14}
+.slot.mine .card{border-color:var(--me)}.slot.opp .card{border-color:var(--op)}
+.sel,.card.sel{outline:2px solid #fff;outline-offset:1px}
+.bar{display:flex;justify-content:space-between;font-size:12px;color:var(--m);padding:4px 8px;border-radius:6px}
+.bar.on{background:var(--l);color:var(--t)}
+.hand{display:flex;gap:6px;overflow-x:auto;padding:6px 2px}
+.hand .card{flex:0 0 var(--w)}
+.ctl{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:8px 0}
+#msg{min-height:22px;color:var(--g);text-align:center;margin:4px 0}
+#st{color:var(--g);margin:8px 0}
+@media(prefers-reduced-motion:no-preference){.card{transition:transform .12s}.card:hover{transform:translateY(-3px)}}
+</style>
+</head>
+<body>
+<nav><b id="gn">CARD ARENA</b><a data-p="home">หน้าหลัก</a><a data-p="lib">คลังการ์ด</a><a data-p="deck">เด็ค</a><a data-p="play">เล่น</a></nav>
+
+<section id="home">
+<h1>สร้างเด็ค แล้วลงสนามกับเพื่อนได้ทันที</h1>
+<p class="s">เกมการ์ดของเรา: ยึดคอร์ดกลางสนามให้ได้ 7 แต้มก่อนอีกฝ่าย ไม่ต้องสมัครสมาชิก</p>
+<div class="f"><button data-p="deck">จัดเด็ค</button><button class="o" data-p="play">เข้าห้องเล่น</button><button class="o" data-p="lib">ดูการ์ดทั้งหมด</button></div>
+<h2>วิธีเล่นย่อ</h2>
+<p class="s">เทิร์นมี 4 เฟส: จั่ว → เมน (วางการ์ดลงสนาม) → ต่อสู้ (ย้ายเข้าคอร์ดกลาง) → จบ ตอนจบเทิร์น การ์ดของคุณในคอร์ดกลาง 1 ใบ = 1 แต้ม ถ้าช่องคอร์ดมีการ์ดของอีกฝ่าย ต้องชนะการต่อสู้ก่อนจึงเข้าได้</p>
+</section>
+
+<section id="lib" hidden>
+<h2>คลังการ์ด</h2>
+<div class="f"><input id="q" placeholder="ค้นหาชื่อ ประเภท หรือข้อความ" aria-label="ค้นหา"></div>
+<div id="libg" class="grid"></div>
+<div id="info">แตะการ์ดเพื่อดูรายละเอียด</div>
+</section>
+
+<section id="deck" hidden>
+<h2>จัดเด็ค <span id="cnt"></span></h2>
+<div class="f"><input id="dn" placeholder="ชื่อเด็ค"><button id="sv">บันทึก</button></div>
+<div class="f"><select id="dsel" aria-label="เด็คที่บันทึกไว้"></select><button class="o" id="ld">เปิด</button><button class="o" id="dl">ลบ</button><button class="o" id="nw">เด็คใหม่</button></div>
+<div id="dlist"></div>
+<h2>รหัสแชร์เด็ค</h2>
+<div class="f"><input id="code" placeholder="วางรหัสเพื่อนำเข้า"><button class="o" id="cp">คัดลอก</button><button id="im">นำเข้า</button></div>
+<h2>เลือกการ์ดเข้าเด็ค (แตะเพื่อเพิ่ม แตะรายการด้านบนเพื่อเอาออก)</h2>
+<div class="f"><input id="q2" placeholder="ค้นหา" aria-label="ค้นหา"></div>
+<div id="dpool" class="grid"></div>
+</section>
+
+<section id="play" hidden>
+<div id="lobby">
+<h2>ห้องเล่น</h2>
+<div class="f"><select id="psel" aria-label="เด็คที่จะใช้"></select></div>
+<div class="f"><button id="hs">สร้างห้อง</button><input id="rc" placeholder="รหัสห้องของเพื่อน"><button class="o" id="jn">เข้าห้อง</button></div>
+<div class="f"><button class="o" id="so">ทดสอบเด็คคนเดียว (คุมทั้งสองฝั่ง)</button></div>
+<div id="st"></div>
+</div>
+<div id="game" hidden>
+<div id="board"></div>
+<div id="msg"></div>
+<div class="ctl" id="ctl"></div>
+<div class="hand" id="hand"></div>
+<div class="ctl"><button class="o" onclick="location.reload()">ออกจากเกม</button></div>
+</div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+const CFG={name:'CARD ARENA',copies:3,size:40,minPlay:10,win:7,hand:5};
+const PH=['จั่ว','เมน','ต่อสู้','จบเทิร์น'];
+let CARDS=[],BY={},cur={},decks={};
+try{decks=JSON.parse(localStorage.tcgDecks||'{}')}catch(e){}
+const N={s:null,my:0,solo:false,sel:null,note:'',conn:null};
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const el=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e};
+const cardEl=c=>{const d=el('div','card',c.img?`<img src="${c.img}" alt="${c.name}">`:`<i>${c.type||''}</i><b>${c.name}</b><span>${c.text||''}</span>${c.power!=null?`<s>${c.power}</s>`:''}`);d.title=c.name;d.tabIndex=0;return d};
+document.title=$('#gn').textContent=CFG.name;
+
+/* ---------- navigation ---------- */
+function go(p){$$('section').forEach(s=>s.hidden=s.id!=p);$$('nav a').forEach(a=>a.classList.toggle('on',a.dataset.p==p));if(p=='lib')pool('#libg','#q',showInfo);if(p=='deck')renderDeck();if(p=='play')fillSel();scrollTo(0,0)}
+document.body.addEventListener('click',e=>{const p=e.target.dataset&&e.target.dataset.p;if(p)go(p)});
+
+/* ---------- library / deck builder ---------- */
+function pool(g,q,fn){const t=$(q).value.toLowerCase(),box=$(g);box.innerHTML='';
+ CARDS.filter(c=>(c.name+' '+(c.type||'')+' '+(c.text||'')).toLowerCase().includes(t)).forEach(c=>{const e=cardEl(c);
+  if(g=='#dpool'&&cur[c.id])e.appendChild(el('em','bd','×'+cur[c.id]));e.onclick=()=>fn(c);box.appendChild(e)})}
+function showInfo(c){$('#info').innerHTML=`<b style="color:var(--g)">${c.name}</b> · ${c.type||''}${c.power!=null?' · พลัง '+c.power:''}<br>${c.text||''}`}
+$('#q').oninput=()=>pool('#libg','#q',showInfo);
+$('#q2').oninput=()=>pool('#dpool','#q2',add);
+const total=()=>Object.values(cur).reduce((a,b)=>a+b,0);
+function add(c){if((cur[c.id]||0)>=CFG.copies)return;cur[c.id]=(cur[c.id]||0)+1;renderDeck()}
+function rem(id){if(--cur[id]<=0)delete cur[id];renderDeck()}
+function renderDeck(){pool('#dpool','#q2',add);const L=$('#dlist');L.innerHTML='';
+ Object.keys(cur).forEach(id=>{const r=el('div','dr',`<span>${BY[id]?BY[id].name:id}</span><b>×${cur[id]}</b>`);r.onclick=()=>rem(id);L.appendChild(r)});
+ if(!total())L.innerHTML='<p class="s">ยังไม่มีการ์ดในเด็ค แตะการ์ดด้านล่างเพื่อเพิ่ม</p>';
+ $('#cnt').textContent=`(${total()}/${CFG.size})`;
+ $('#code').value=total()?btoa(Object.entries(cur).map(e=>e.join('*')).join(',')):'';fillSel()}
+function fillSel(){['#dsel','#psel'].forEach(s=>{const v=$(s).value;$(s).innerHTML=Object.keys(decks).map(n=>`<option>${n}</option>`).join('')||'<option value="">ยังไม่มีเด็คที่บันทึก</option>';if(decks[v])$(s).value=v})}
+const store=()=>localStorage.tcgDecks=JSON.stringify(decks);
+$('#sv').onclick=()=>{const n=$('#dn').value.trim();if(!n||!total())return;decks[n]={...cur};store();fillSel();$('#dsel').value=n};
+$('#ld').onclick=()=>{const n=$('#dsel').value;if(decks[n]){cur={...decks[n]};$('#dn').value=n;renderDeck()}};
+$('#dl').onclick=()=>{const n=$('#dsel').value;if(decks[n]&&confirm('ลบเด็ค '+n+'?')){delete decks[n];store();fillSel()}};
+$('#nw').onclick=()=>{cur={};$('#dn').value='';renderDeck()};
+$('#cp').onclick=()=>{$('#code').select();navigator.clipboard&&navigator.clipboard.writeText($('#code').value)};
+$('#im').onclick=()=>{try{const o={};atob($('#code').value.trim()).split(',').forEach(x=>{const[i,n]=x.split('*');if(BY[i])o[i]=Math.min(+n||0,CFG.copies)});if(Object.keys(o).length){cur=o;renderDeck()}else alert('ไม่พบการ์ดในรหัสนี้')}catch(e){alert('รหัสไม่ถูกต้อง')}};
+
+/* ---------- game core ---------- */
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+const me=()=>N.solo?N.s.turn:N.my;
+const canAct=()=>N.s&&N.s.over<0&&N.s.turn==me();
+function newState(d0,d1){const mk=d=>{const deck=shuffle(d.slice());return{deck,hand:deck.splice(0,CFG.hand),field:Array(6).fill(null),grave:[]}};
+ const s={p:[mk(d0),mk(d1)],core:[null,null,null],turn:0,phase:0,score:[0,0],over:-1,first:true,log:'เริ่มเกม'};startTurn(s);return s}
+function startTurn(s){s.phase=0;const pl=s.p[s.turn];if(!s.first&&pl.deck.length)pl.hand.push(pl.deck.pop());s.first=false}
+function sync(msg){if(msg)N.s.log=msg;N.note='';render();if(N.conn&&N.conn.open)N.conn.send(N.s)}
+const note=t=>{N.note=t;render()};
+function tapH(i){if(canAct()){N.sel={z:'h',i};render()}}
+function tapF(j){if(!canAct())return;const s=N.s,pl=s.p[me()],sel=N.sel;
+ if(sel&&!pl.field[j]&&(sel.z=='h'||sel.z=='f')){if(s.phase!=1)return note('วางหรือย้ายในสนามได้ในเฟสเมน');
+  if(sel.z=='h')pl.field[j]=pl.hand.splice(sel.i,1)[0];else{pl.field[j]=pl.field[sel.i];pl.field[sel.i]=null}
+  N.sel=null;return sync('วางการ์ดลงสนาม')}
+ if(pl.field[j]){N.sel={z:'f',i:j};render()}}
+function tapC(k){if(!canAct())return;const s=N.s,m=me(),pl=s.p[m],c=s.core[k],sel=N.sel;
+ if(sel&&sel.z=='f'){if(s.phase!=2)return note('ย้ายเข้าคอร์ดได้ในเฟสต่อสู้');const id=pl.field[sel.i];
+  if(c){if(c.o==m)return note('ช่องคอร์ดนี้เป็นของคุณแล้ว');
+   if(!confirm('ต่อสู้กับ '+BY[c.c].name+'\nตกลง = ชนะ  ·  ยกเลิก = แพ้')){pl.grave.push(id);pl.field[sel.i]=null;N.sel=null;return sync('แพ้การต่อสู้ การ์ดถูกทำลาย')}
+   s.p[c.o].grave.push(c.c)}
+  s.core[k]={c:id,o:m};pl.field[sel.i]=null;N.sel=null;return sync('ยึดคอร์ดช่อง '+(k+1)+' ได้')}
+ if(c&&c.o==m){N.sel={z:'c',i:k};render()}}
+function act(a){if(!canAct())return;const s=N.s,pl=s.p[me()],sel=N.sel;
+ if(a=='draw'){if(pl.deck.length)pl.hand.push(pl.deck.pop());return sync('จั่วเพิ่ม 1 ใบ')}
+ if(a=='x'){N.sel=null;return render()}
+ if(!sel)return;let id;
+ if(sel.z=='h')id=pl.hand.splice(sel.i,1)[0];else if(sel.z=='f'){id=pl.field[sel.i];pl.field[sel.i]=null}else{id=s.core[sel.i].c;s.core[sel.i]=null}
+ (a=='g'?pl.grave:pl.hand).push(id);N.sel=null;sync(a=='g'?'ส่งลงสุสาน':'คืนขึ้นมือ')}
+function next(){if(!canAct())return;const s=N.s;N.sel=null;
+ if(s.phase<3){s.phase++;return sync()}
+ const n=s.core.filter(c=>c&&c.o==s.turn).length;s.score[s.turn]+=n;
+ if(s.score[s.turn]>=CFG.win){s.over=s.turn;return sync('ครบ '+CFG.win+' แต้ม!')}
+ s.turn=1-s.turn;startTurn(s);sync('จบเทิร์น ได้ +'+n+' แต้ม')}
+
+/* ---------- board rendering ---------- */
+function slotEl(id,fn,cls){const d=el('div','slot '+(cls||''));if(id)d.appendChild(cardEl(BY[id]));if(fn)d.onclick=fn;return d}
+const rowEl=l=>{const r=el('div','row');l.forEach(x=>r.appendChild(x));return r};
+function render(){const s=N.s;if(!s)return;$('#lobby').hidden=true;$('#game').hidden=false;
+ const m=me(),o=1-m,P=s.p,B=$('#board'),sel=N.sel;B.innerHTML='';
+ const bar=i=>el('div','bar'+(s.turn==i?' on':''),`<span>${i==m?(N.solo?'ผู้เล่น '+(i+1):'คุณ'):'คู่ต่อสู้'}</span><span>มือ ${P[i].hand.length} · เด็ค ${P[i].deck.length} · สุสาน ${P[i].grave.length} · ${s.score[i]}/${CFG.win} แต้ม</span>`);
+ const frow=(pl,idx,mine)=>rowEl(idx.map(j=>slotEl(pl.field[j],mine?()=>tapF(j):null,(mine?'mine ':'opp ')+(mine&&sel&&sel.z=='f'&&sel.i==j?'sel':''))));
+ B.append(bar(o),frow(P[o],[3,4,5],false),frow(P[o],[0,1,2],false),
+  rowEl(s.core.map((c,k)=>slotEl(c&&c.c,()=>tapC(k),'core '+(c?(c.o==m?'mine ':'opp '):'')+(sel&&sel.z=='c'&&sel.i==k?'sel':'')))),
+  frow(P[m],[0,1,2],true),frow(P[m],[3,4,5],true),bar(m));
+ const H=$('#hand');H.innerHTML='';P[m].hand.forEach((id,i)=>{const e=cardEl(BY[id]);if(sel&&sel.z=='h'&&sel.i==i)e.classList.add('sel');e.onclick=()=>tapH(i);H.appendChild(e)});
+ const C=$('#ctl');C.innerHTML='';const on=canAct();
+ C.appendChild(el('span','', `เทิร์น${s.turn==m?'ของคุณ':'คู่ต่อสู้'} · เฟส ${PH[s.phase]}`));
+ const btn=(t,f,c,show=true)=>{if(!show)return;const b=el('button',c,t);b.disabled=!on;b.onclick=f;C.appendChild(b)};
+ btn(s.phase<3?'เฟสถัดไป':'จบเทิร์น',next);btn('จั่วเพิ่ม',()=>act('draw'),'o');
+ btn('ลงสุสาน',()=>act('g'),'o',!!sel);btn('คืนขึ้นมือ',()=>act('h'),'o',!!sel&&sel.z!='h');btn('ยกเลิก',()=>act('x'),'o',!!sel);
+ $('#msg').textContent=s.over>=0?(N.solo?`ผู้เล่น ${s.over+1} ชนะ!`:s.over==m?'คุณชนะ!':'คุณแพ้'):(N.note||s.log)}
+
+/* ---------- lobby / PeerJS ---------- */
+const st=t=>$('#st').textContent=t;
+function myDeck(){const d=decks[$('#psel').value];if(!d){st('เลือกหรือสร้างเด็คก่อน');return null}
+ const l=Object.entries(d).flatMap(([i,n])=>BY[i]?Array(n).fill(i):[]);if(l.length<CFG.minPlay){st('เด็คต้องมีอย่างน้อย '+CFG.minPlay+' ใบ');return null}return l}
+$('#so').onclick=()=>{const d=myDeck();if(!d)return;N.solo=true;N.s=newState(d,d);render()};
+$('#hs').onclick=()=>{const d=myDeck();if(!d)return;const code=Math.random().toString(36).slice(2,7).toUpperCase();N.my=0;
+ const p=new Peer('tcgarena-'+code);p.on('open',()=>st('รหัสห้อง: '+code+' · ส่งให้เพื่อนแล้วรอเข้าห้อง'));
+ p.on('error',e=>st('เชื่อมต่อไม่ได้ ('+e.type+') ลองสร้างห้องใหม่'));
+ p.on('connection',c=>{N.conn=c;c.on('data',x=>{if(x.deck){N.s=newState(d,x.deck);sync()}else{N.s=x;render()}});c.on('close',()=>note('เพื่อนหลุดจากห้อง'))})};
+$('#jn').onclick=()=>{const d=myDeck(),code=$('#rc').value.trim().toUpperCase();if(!d||!code)return;N.my=1;st('กำลังเข้าห้อง...');
+ const p=new Peer();p.on('error',e=>st('เข้าห้องไม่ได้ ('+e.type+') ตรวจรหัสอีกครั้ง'));
+ p.on('open',()=>{const c=p.connect('tcgarena-'+code,{reliable:true});N.conn=c;c.on('open',()=>c.send({deck:d}));c.on('data',x=>{N.s=x;render()});c.on('close',()=>note('เพื่อนหลุดจากห้อง'))})};
+
+/* ---------- boot ---------- */
+fetch('cards.json').then(r=>r.json()).then(j=>{CARDS=j;j.forEach(c=>BY[c.id]=c);go('home')}).catch(()=>{go('home');$('#home').insertAdjacentHTML('beforeend','<p class="s">โหลด cards.json ไม่ได้ ต้องเปิดผ่านเว็บ (GitHub Pages หรือเซิร์ฟเวอร์ในเครื่อง) ไม่ใช่เปิดไฟล์ตรงๆ</p>')});
+</script>
+</body>
+</html>
