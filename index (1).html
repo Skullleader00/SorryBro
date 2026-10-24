@@ -1,0 +1,1721 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SLACKWATER — salvage crew card game</title>
+<style>:root{
+  --bg:#0f1519; --plate:#1b262c; --plate2:#233238; --steel:#8ea3ac; --ink:#0a0e10;
+  --line:#3d545e; --paper:#e7e3d8; --mute:#87a0a9;
+  --rust:#c0512a; --rust2:#7c2d14; --tide:#2a7fb8; --tide2:#154768;
+  --grit:#7f9c3f; --grit2:#4a5f21; --null:#7d8a93; --null2:#4a5459;
+  --amber:#f5b93c; --good:#3fb27a; --bad:#e5573f;
+  --fD:"Archivo Narrow","Oswald","Haettenschweiler","Franklin Gothic Bold","Arial Narrow",sans-serif;
+  --fB:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --fM:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  /* card width is derived from CARDS PER ROW, not from squeezing a full row of chrome in.
+     phone: 2 columns / tablet+ : 4 columns */
+  --cols:2;             /* dock columns */
+  --dockRows:2;         /* card rows per dock = ceil(MAXCREW / cols) */
+  --cw:88px;            /* fallback before the row container is measured */
+  --tap:46px;                 /* minimum touch target */
+  --nv:env(safe-area-inset-top,0px); --sh:env(safe-area-inset-bottom,0px);
+  --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%}
+html{-webkit-text-size-adjust:100%}
+body{background:
+  radial-gradient(140% 92% at 50% -18%,#22333b 0%,#101a1f 46%,#06090b 100%);
+  color:var(--paper);font:15px/1.45 var(--fB);overflow:hidden;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.055;background-image:var(--grain);mix-blend-mode:overlay}
+body::after{content:"";position:fixed;inset:auto 0 0 0;height:42%;pointer-events:none;z-index:0;
+  background:linear-gradient(180deg,transparent,rgba(4,26,32,.55));}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;min-height:var(--tap);min-width:44px}
+button:disabled{cursor:not-allowed}
+:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+
+/* ---------- shell: board fills the viewport, hand + actions dock to the bottom ---------- */
+#app{display:flex;height:100dvh;position:relative;z-index:1}
+.table{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;
+  padding:calc(6px + var(--nv)) 10px 0;max-width:1240px;margin:0 auto;width:100%}
+.rail{width:280px;flex:none;border-left:1px solid var(--line);background:#0b1114;padding:10px;
+  display:flex;flex-direction:column;gap:10px}
+.rail>*{flex:none}
+.rail .logbox{flex:1 1 auto;min-height:0}
+.rail .say{overflow:hidden;max-height:5em;text-overflow:ellipsis;overflow-wrap:anywhere}
+@media (max-width:900px){
+  .rail{position:fixed;z-index:38;top:0;right:0;bottom:0;width:min(340px,88vw);
+    width:min(320px,84vw);transform:translateX(100%);transition:transform .26s cubic-bezier(.2,.9,.3,1);
+    box-shadow:-18px 0 44px rgba(0,0,0,.6);padding-top:calc(12px + var(--nv));padding-bottom:calc(12px + var(--sh))}
+  .rail{visibility:hidden}
+  body.drawer .rail{transform:none;visibility:visible}
+  .scrim{position:fixed;inset:0;z-index:37;background:rgba(3,7,9,.62);opacity:0;pointer-events:none;transition:opacity .2s}
+
+  body.drawer .scrim{opacity:1;pointer-events:auto}
+}
+/* landscape phone: one dock row per side, hand rail scrolls sideways */
+/* landscape phone: chrome shrinks too, and we tell the player portrait plays better */
+
+@media (pointer:coarse){button{min-height:48px}
+  .btn.sm{min-height:48px}.cell{min-height:48px}}
+@media (min-width:901px){.scrim{display:none}}
+@container (max-width:380px){.zone.crews .ckw{display:none}}
+
+/* ---------- player bars: who they are + their Nerve track ---------- */
+.pbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 10px;border:1px solid var(--line);
+  border-radius:12px;background:linear-gradient(180deg,var(--plate2),var(--plate));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+.pbar.foe{border-top:3px solid #8a4030}
+.pbar.act{border-color:var(--amber);box-shadow:0 0 0 1px rgba(245,185,60,.35),0 0 22px -8px rgba(245,185,60,.85)}
+.pname{font:700 14px/1 var(--fD);letter-spacing:.13em;text-transform:uppercase}
+.ptag{font:700 9px/1 var(--fM);letter-spacing:.12em;color:var(--ink);background:var(--steel);padding:4px 6px;border-radius:4px}
+.pips{display:flex;gap:5px;margin-left:auto;flex-wrap:nowrap}
+.pip{width:clamp(15px,4.2vw,20px);height:clamp(22px,6vw,30px);border-radius:4px;border:1px solid var(--steel);
+  background:repeating-linear-gradient(135deg,#243138 0 4px,#1a252a 4px 8px);position:relative;flex:none;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.5)}
+.pip.up{background:linear-gradient(160deg,#ffe07a,#dd8a1e);border-color:#ffe6a8;box-shadow:0 0 14px -3px rgba(245,185,60,.95)}
+.pip.up::after{content:"";position:absolute;inset:3px;border-radius:2px;
+  border:1px solid rgba(90,50,0,.5);background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.5) 50%,transparent 60%)}
+.stat{font:700 11px/1 var(--fM);color:var(--mute);white-space:nowrap}
+.stat b{color:var(--paper);font-weight:700}
+
+/* ---------- zones: dock grid + compact chip column ----------
+   Sizing rule: a card may never be wider than its share of the row NOR taller than
+   the vertical budget for 2 dock rows + a hand rail. That's what kept names at 7px. */
+.mid{flex:1;min-height:0;display:grid;gap:6px;container-type:size;align-content:center;
+  grid-template-rows:clamp(124px,36cqh,268px) auto clamp(124px,36cqh,268px)}
+.rowline{min-height:0;height:100%;container-type:size;
+  /* a card may be at most as tall as its row, and at most its share of the row's width */
+  --cw:min(calc(100cqh / var(--dockRows) * .70),calc((100cqw - 150px) / var(--cols)),146px)}
+.rowline{display:flex;align-items:center;gap:7px;min-width:0}
+.berthcol{flex:none;width:calc(var(--cw) + 12px);display:grid;place-items:center}
+.berthcol .card,.berthcol .slot{width:var(--cw);height:auto;aspect-ratio:.7}
+.chipcol{flex:none;display:flex;flex-direction:column;gap:6px}
+.zone{border:1px dashed #33474f;border-radius:12px;padding:6px;display:grid;gap:7px;min-width:0;
+  background:rgba(255,255,255,.02)}
+.zone.crews{flex:1;min-width:0;height:100%;align-content:center;justify-items:center;
+  grid-template-columns:repeat(var(--cols),minmax(0,1fr));grid-auto-rows:min-content}
+.zone.crews[data-p="0"]{box-shadow:inset 0 -22px 30px -26px rgba(63,178,122,.7)}
+.zone.crews[data-p="1"]{box-shadow:inset 0 22px 30px -26px rgba(229,87,63,.6)}
+.slot{width:min(var(--cw),100%);aspect-ratio:.7;border:1px dashed #2f444c;border-radius:9px;background:rgba(255,255,255,.018);
+  display:grid;place-items:center}
+.zone.crews .slot{width:min(var(--cw),100%);height:auto;align-self:center}
+.slot .hint{font:700 9px/1.2 var(--fM);letter-spacing:.1em;color:#4f6a74;text-transform:uppercase}
+.slot.empty.berth-empty{border-style:dotted}
+/* --cw is already bounded by the row height, so an explicit ratio can never clip */
+.uc{width:min(var(--cw),100%);aspect-ratio:.7;max-height:100%;justify-self:center;position:relative}
+.uc>.card{width:100%;height:100%}
+.chip{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  min-width:62px;padding:5px 9px;border:1px solid var(--line);border-radius:10px;background:#111b20;
+  font:700 9px/1.1 var(--fM);letter-spacing:.1em;text-transform:uppercase;color:var(--mute);cursor:pointer;min-height:46px}
+.chip b{font:700 17px/1 var(--fD);color:var(--paper);letter-spacing:.02em}
+.chip:hover,.chip.on{border-color:var(--amber);color:var(--paper)}
+.gap{display:flex;align-items:center;gap:8px;padding:0;position:relative;min-width:0}
+.gap::before{content:"";position:absolute;left:0;right:0;top:50%;height:1px;
+  background:repeating-linear-gradient(90deg,#2f444c 0 8px,transparent 8px 16px);opacity:.7}
+.tidewatch{flex:none;font:700 9px/1 var(--fM);letter-spacing:.14em;color:#4f6a74;position:relative;padding:0 6px;text-transform:uppercase}
+.prompt{flex:1;min-width:0;display:flex;align-items:center;gap:8px;font-size:13.5px;color:#b9ccd2;position:relative;
+  padding:6px 10px;border-left:3px solid var(--amber);border-radius:0 8px 8px 0;background:rgba(9,17,20,.72)}
+.prompt b{color:var(--amber)}
+.prompt .msg{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:900px){.prompt{display:none}}
+.hintline{flex:1 1 100%;order:-1;font-size:13.5px;color:#b9ccd2;line-height:1.35}
+.hintline b{color:var(--amber)}
+@media (min-width:901px){.hintline{flex:0 1 auto;order:0;font-size:13px}}
+
+/* ---------- buttons ---------- */
+.btn{border:1px solid var(--steel);border-radius:10px;padding:0 14px;min-height:var(--tap);
+  font:700 12px/1 var(--fD);letter-spacing:.12em;text-transform:uppercase;
+  background:linear-gradient(180deg,#2b3b43,#1b262c);color:var(--paper);transition:transform .1s,filter .1s,border-color .1s;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn:hover{border-color:var(--amber);color:#fff}
+.btn:active{transform:translateY(2px)}
+.btn.go{background:linear-gradient(180deg,#ffc95c,#e39a17);color:#2a1a00;border-color:#ffd98a;font-weight:800}
+.btn.go:hover{filter:brightness(1.08)}
+.btn.end{background:linear-gradient(180deg,#43606b,#26363d);border-color:#5f8492}
+.btn.dgr{border-color:#8a4030;background:linear-gradient(180deg,#5a2a1e,#3a1a12)}
+.btn.sm{min-height:44px;padding:0 12px;font-size:11.5px}
+.btn:disabled{opacity:.38;border-color:var(--line);background:#182227;color:#5e757e}
+/* action bar: sticky, thumb-reachable, one obvious primary */
+.btns{display:flex;gap:8px;flex:none;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+.table[aria-busy="true"]{cursor:progress}
+.table[aria-busy="true"] .actionbar,.table[aria-busy="true"] .handwrap{opacity:.55}
+.actionbar{position:sticky;bottom:0;z-index:12;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+  padding:8px 10px calc(8px + var(--sh));margin:0 -10px;background:linear-gradient(180deg,rgba(8,14,17,.4),#0a1114 55%);
+  border-top:1px solid #27363c}
+.actionbar .btn{flex:1 1 auto;min-width:110px}
+.actionbar .btn.go{flex:2 1 200px}
+.actionbar .hintline{flex:1 1 100%;order:-1;font-size:13px;color:#b9ccd2;min-width:0}
+.actionbar .hintline b{color:var(--amber)}
+
+/* ---------- cards (typography has px floors so nothing everrenders unreadable) ---------- */
+.card{position:relative;flex:none;width:var(--cw);aspect-ratio:.7;--a:var(--null);--b:var(--null2);
+  border-radius:9px;border:1px solid #000;overflow:hidden;cursor:pointer;user-select:none;
+  background:linear-gradient(158deg,var(--a),var(--b) 72%,#0d1113);
+  box-shadow:0 3px 8px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.14);transition:transform .13s,box-shadow .13s}
+.card.fr{--a:var(--rust);--b:var(--rust2)} .card.ft{--a:var(--tide);--b:var(--tide2)}
+.card.fg{--a:var(--grit);--b:var(--grit2)} .card.fn{--a:var(--null);--b:var(--null2)}
+.card::before{content:"";position:absolute;inset:0;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 1px,transparent 1px 5px),
+   radial-gradient(120% 60% at 50% 0%,rgba(255,255,255,.14),transparent 60%);opacity:.6;pointer-events:none}
+/* bands: badges / art / kind / name / footer */
+.face{position:absolute;left:8%;right:8%;top:17%;height:25%;display:grid;place-items:center;
+  font:400 max(22px,calc(var(--cw)*.4))/1 var(--fB);color:rgba(255,255,255,.9);
+  text-shadow:0 2px 5px rgba(0,0,0,.7);pointer-events:none}
+.cost,.wage{position:absolute;top:2.5%;width:21%;aspect-ratio:1;display:grid;place-items:center;border-radius:5px;
+  font:800 max(13px,calc(var(--cw)*.2))/1 var(--fD);background:var(--paper);color:#111;
+  box-shadow:0 1px 3px rgba(0,0,0,.5)}
+.cost{left:3%} .wage{right:3%;background:var(--amber);color:#2a1a00}
+.cname{position:absolute;left:4%;right:4%;top:51%;bottom:27%;text-align:center;
+  font:700 clamp(10.5px,calc(var(--cw)*.098),13.5px)/1.06 var(--fD);letter-spacing:0;text-transform:uppercase;
+  color:#fff;text-shadow:0 1px 3px #000;pointer-events:none;hyphens:none;overflow-wrap:anywhere;
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.card.big .cname,.cell .card .cname{bottom:13%}
+.ctag{position:absolute;left:0;right:0;top:43.5%;text-align:center;font:700 max(8px,calc(var(--cw)*.08))/1 var(--fM);
+  color:rgba(255,255,255,.7);letter-spacing:.1em;pointer-events:none}
+.cp{position:absolute;right:3.5%;bottom:2%;min-width:21%;padding:2px 3px;display:grid;place-items:center;border-radius:5px;
+  background:#0c1012;border:1px solid var(--amber);color:var(--amber);
+  font:800 clamp(12px,calc(var(--cw)*.2),28px)/1 var(--fD);box-shadow:0 1px 3px rgba(0,0,0,.55)}
+.cp.mod{background:var(--amber);color:#221500}
+.ckw{position:absolute;left:3.5%;right:28%;bottom:2.5%;font:700 clamp(8.5px,calc(var(--cw)*.08),12px)/1.1 var(--fM);
+  color:rgba(255,255,255,.85);letter-spacing:.02em;text-transform:uppercase;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card:active{transform:translateY(2px) scale(.99)}
+@media (hover:hover){.card:hover{transform:translateY(-5px) scale(1.04);z-index:3}}
+.card.tapped{transform:rotate(90deg) scale(.84);filter:saturate(.85)}
+@media (hover:hover){.card.tapped:hover{transform:rotate(90deg) scale(.88)}}
+.card.dizzy::after{content:"◷";position:absolute;top:23%;right:5%;font-size:max(13px,calc(var(--cw)*.2));color:rgba(255,255,255,.85)}
+.card.spell{--a:#20414c;--b:#0f2027}
+.card.rig{--a:#5b4a2a;--b:#2c2313}
+.card.term{--a:#2c4a44;--b:#122623}
+.card.rig::after,.card.term::after{content:"";position:absolute;inset:0;border:2px solid rgba(245,185,60,.4);border-radius:8px}
+.card.pick{box-shadow:0 0 0 2px var(--amber),0 0 20px -2px rgba(245,185,60,.95);animation:throb 1.1s infinite}
+.card.pick.foe{box-shadow:0 0 0 2px var(--bad),0 0 20px -2px rgba(229,87,63,.95)}
+.card.pick.ally{box-shadow:0 0 0 2px var(--good),0 0 20px -2px rgba(63,178,122,.95)}
+.card.dim{filter:brightness(.5) saturate(.6)}
+.card.sel{transform:translateY(-14px);box-shadow:0 0 0 2px var(--good),0 10px 20px rgba(0,0,0,.6)}
+.card.tiny{--cw:46px;border-radius:5px}
+.card.back .face{top:14%;height:26%}
+.card.back .c-band{top:44%}
+.card.mini{--cw:clamp(78px,21vw,96px)}
+.card.big{--cw:min(240px,54vw);cursor:default;border-radius:14px}
+@keyframes throb{50%{box-shadow:0 0 0 5px rgba(245,185,60,.5),0 0 26px 2px rgba(245,185,60,.6)}}
+.held{flex:none;display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--line);border-radius:10px;background:#111b1f}
+.held .card{--cw:40px}
+@media (max-width:560px){.held .card{display:none}}
+.hcount{flex:none;width:34px;text-align:center;font:700 11px/1.1 var(--fM);color:var(--mute)}
+.hcount b{display:block;font:700 18px/1 var(--fD);color:var(--paper)}
+/* hand: a snap-scrolling rail so every card stays full size and tappable */
+.handzone{flex:none;display:flex;flex-direction:column;gap:2px;padding-bottom:var(--sh);
+  height:clamp(104px,26cqh,190px)}
+.handwrap{flex:1;min-height:0;display:flex;align-items:stretch;gap:8px;padding:2px 2px 4px;overflow-x:auto;overscroll-behavior-x:contain;
+  scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;scrollbar-width:thin;
+  mask-image:linear-gradient(90deg,transparent 0,#000 12px,#000 calc(100% - 18px),transparent 100%)}
+/* the card's width is derived from a definite height: handzone -> handwrap -> slot */
+.handwrap>div{height:100%;display:flex;scroll-snap-align:center}
+.handwrap .card{height:100%;width:auto;min-width:76px;aspect-ratio:.7;flex:none}
+.handmeta{flex:none;display:flex;align-items:center;gap:8px;min-height:0;font:700 10px/1 var(--fM);letter-spacing:.14em;text-transform:uppercase;color:#5f7b84}
+.handmeta .n{color:var(--paper)}
+@media (hover:hover){.handwrap .card:hover{transform:translateY(-12px) scale(1.07);z-index:5}}
+
+/* ---------- overlays: centered dialog on desktop, bottom sheet on touch ---------- */
+.logbox{flex:1;min-height:0;overflow:auto;font:12.5px/1.45 var(--fM);color:#a9c0c8;scrollbar-width:thin}
+.logbox .lh{font:700 11px/1 var(--fD);letter-spacing:.16em;text-transform:uppercase;color:var(--mute);
+  position:sticky;top:0;background:#0b1114;padding:2px 0 6px}
+.logbox p{margin:0 0 4px;padding-left:7px;border-left:2px solid #2b3d45}
+.logbox p.you{border-color:var(--good)} .logbox p.foe{border-color:var(--bad)}
+.logbox p.sys{border-color:var(--amber);color:var(--amber)}
+.say{position:relative;border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:#131f24;font-size:14px;min-height:48px}
+.say b{display:block;font:700 10px/1 var(--fD);letter-spacing:.16em;color:var(--amber);margin-bottom:4px}
+.veil{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:16px;background:rgba(4,8,10,.78);backdrop-filter:blur(3px)}
+.sheet{width:min(780px,100%);max-height:calc(100dvh - 32px);overflow:auto;background:linear-gradient(180deg,#1a252b,#111a1e);
+  border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 30px 80px rgba(0,0,0,.7)}
+.sheet h2{margin:0 0 6px;font:700 clamp(20px,5.4vw,24px)/1.12 var(--fD);letter-spacing:.05em;text-transform:uppercase}
+.sheet h3{margin:14px 0 6px;font:700 12px/1 var(--fD);letter-spacing:.16em;text-transform:uppercase;color:var(--amber)}
+.sheet p{margin:0 0 8px;color:#bccdd3;font-size:14px}
+.sheet .acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:14px;position:sticky;bottom:-18px;
+  padding:10px 0 calc(4px + var(--sh));background:linear-gradient(180deg,rgba(17,26,30,0),#111a1e 34%)}
+.sheet .acts .btn{flex:1 1 140px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(clamp(88px,26vw,124px),1fr));gap:9px}
+.cell{border:1px solid var(--line);border-radius:10px;padding:7px;background:#0e161a;display:flex;flex-direction:column;gap:5px;align-items:center;min-height:44px}
+.cell:active{border-color:var(--amber)}
+.cell .cn{font:700 12px/1.15 var(--fD);letter-spacing:.03em;text-transform:uppercase;text-align:center;min-height:2.3em}
+.cell .cc{display:flex;gap:5px;align-items:center;font:700 11px/1 var(--fM);color:var(--mute)}
+.stepper{display:flex;align-items:center;gap:6px}
+.stepper button{width:46px;height:46px;border:1px solid var(--steel);border-radius:9px;font:700 20px/1 var(--fM);min-height:46px;min-width:46px}
+.stepper button:hover{border-color:var(--amber)}
+.stepper b{min-width:22px;text-align:center;font:700 14px/1 var(--fM)}
+.kv{display:flex;justify-content:space-between;gap:10px;border-bottom:1px dashed #2b3d45;padding:6px 0;font-size:13.5px}
+.kv span{color:var(--mute)}
+.goname{font:800 clamp(34px,10vw,84px)/1 var(--fD);letter-spacing:.04em;text-transform:uppercase;text-align:center}
+.goname.w{color:var(--amber);text-shadow:0 4px 0 #6b3f00,0 0 40px rgba(245,185,60,.5)}
+.goname.l{color:#8fb6c6;text-shadow:0 4px 0 #16303b}
+.detail .body{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.txt{font-size:14px;line-height:1.55;color:#dbe6e9;white-space:pre-wrap}
+.txt em{color:var(--amber);font-style:normal;font-weight:700}
+.hl{background:#1d2b31;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:14px}
+.fx{position:fixed;left:50%;top:42%;transform:translate(-50%,-50%);z-index:45;pointer-events:none;
+  font:800 clamp(28px,7vw,64px)/1 var(--fD);letter-spacing:.06em;text-transform:uppercase;color:var(--amber);
+  text-shadow:0 4px 0 rgba(0,0,0,.5);opacity:0}
+.fx.on{animation:fxp .95s ease-out}
+@keyframes fxp{0%{opacity:0;transform:translate(-50%,-50%) scale(.7)}25%{opacity:1;transform:translate(-50%,-50%) scale(1.05)}100%{opacity:0;transform:translate(-50%,-58%) scale(1.15)}}
+.shake{animation:shk .3s}
+@keyframes shk{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+/* the log lives in the side rail on desktop; on smaller screens a button in the hand meta opens it */
+.logbtn{display:none}
+@media (max-width:900px){.logbtn{display:inline-flex}}
+.grab{display:none}
+.rotate{display:none;gap:8px;align-items:center;justify-content:center;flex:none;
+  font:700 10px/1.2 var(--fM);letter-spacing:.1em;text-transform:uppercase;color:var(--ink);
+  background:linear-gradient(180deg,#ffd977,#e0a11d);border-radius:8px;padding:4px 8px;margin-bottom:calc(4px + var(--sh))}
+.rotate[hidden]{display:none}
+@media (max-height:520px) and (max-width:900px){.rotate{display:flex}}
+@media (max-width:900px){
+  .veil{place-items:end center;padding:0}
+  .sheet{width:100%;max-width:100%;max-height:90dvh;border-radius:20px 20px 0 0;border-bottom:0;
+    padding:10px 14px calc(14px + var(--sh));animation:rise .28s cubic-bezier(.2,.9,.3,1)}
+  .sheet:has(>.grab){padding-top:0}
+  .grab{display:block;width:44px;height:5px;border-radius:99px;background:#3f565f;margin:8px auto 6px}
+  .detail .body{flex-direction:column;align-items:center;gap:12px}
+  .detail .body>div:last-child{min-width:0!important;width:100%}
+}
+@keyframes rise{from{transform:translateY(24px);opacity:.6}}
+
+/* ---------- addenda ---------- */
+.c-band{position:absolute;left:0;right:0;top:45%;text-align:center;font:700 calc(var(--cw)*.11)/1 var(--fD);
+  letter-spacing:.1em;color:rgba(255,255,255,.6);padding:3px 0;border-block:1px solid rgba(255,255,255,.22);
+  background:rgba(0,0,0,.25);pointer-events:none}
+.lk{font-size:12.5px;color:#a9c0c8;margin:0 0 10px;line-height:1.5}
+.lk b{color:var(--amber)}
+.lk-note{font-size:12px;color:var(--mute)}
+.cell .btn{margin-top:2px}
+.cell[data-i],.cell .cn{cursor:pointer}
+/* mini/tiny cards sit inside chooser grids — drop the dense chrome so nothing overlaps */
+.card.mini .ckw,.card.mini .ctag,.card.tiny .ckw,.card.tiny .ctag,.card.mini .c-mod,.card.tiny .c-mod{display:none}
+.card.mini .cname,.card.tiny .cname{top:53%;font-size:calc(var(--cw)*.125);line-height:1.08;max-height:3.4em;-webkit-line-clamp:3}
+.card.mini .face,.card.tiny .face{top:17%;height:30%}
+.card.mini .cp,.card.tiny .cp{bottom:2%}
+.card.mini .cp,.card.tiny .cp{bottom:1.5%}
+.card.big .cname{font-size:17px;line-height:1.22;bottom:14%;max-height:2.6em}
+.card.big .ckw{font-size:11px;bottom:2%}
+.cell .cn{white-space:normal}
+.veil .sheet .body{display:block}
+.detail .veil,.veil.detail{z-index:44}
+.body{display:block}
+.stat{margin-left:0}
+.pbar .pips{margin-left:auto}
+.grid{margin-top:4px}
+.acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:14px}
+.acts .btn{min-width:96px}
+h2{margin:0 0 6px;font:700 20px/1.15 var(--fD);letter-spacing:.06em;text-transform:uppercase}
+h3{margin:14px 0 5px;font:700 11px/1 var(--fD);letter-spacing:.16em;text-transform:uppercase;color:var(--amber)}
+p.txt{color:#dbe6e9}
+
+/* ================= responsive layer (declared last, so order never bites) ================= */
+/* tablet / desktop: the Dock is a single row of four */
+@media (min-width:701px){:root{--cols:4;--dockRows:1}}
+/* phones: one-line player bars, smaller pips, a shorter hand rail */
+@media (max-width:700px){
+  .pbar{flex-wrap:nowrap;padding:5px 8px;gap:7px}
+  .pbar .stat{display:none}
+  .pip{width:clamp(13px,3.5vw,17px);height:clamp(19px,5vw,24px)}
+  .pips{gap:4px}
+  .pname{font-size:12px;letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .handzone{height:clamp(96px,22cqh,158px)}
+  .berthcol{width:calc(var(--cw) + 8px)}
+  .zone.crews{gap:5px;padding:5px}
+}
+/* Landscape phones: a size container cannot be content-sized, so containment is switched
+   off and the whole column scrolls as one page instead of crushing the cards. */
+@media (max-height:520px) and (max-width:900px){
+  :root{--cols:2;--dockRows:2}
+  body{overflow:auto}
+  #app{display:block;overflow:visible;height:auto;min-height:100dvh}
+  .table{display:flex;container-type:normal;overflow:visible;height:auto;min-height:100dvh;
+    padding-bottom:calc(6px + var(--sh))}
+  .mid{container-type:normal;grid-template-rows:auto auto auto;flex:none}
+  .rowline{container-type:normal;overflow:visible;height:auto;
+    --cw:min(calc((100vw - 176px)/2),78px)}
+  .zone.crews{height:auto;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr))}
+  .pbar{flex-wrap:nowrap;padding:5px 8px;gap:7px}
+  .pbar .stat,.pbar .pname{display:none}
+  .pip{width:15px;height:21px}
+  .handzone{height:auto;container-type:normal}
+  .handwrap{overflow:visible;flex-wrap:wrap;min-height:0}
+  .handwrap .card{height:auto;width:min(var(--cw),78px);aspect-ratio:.7}
+  .actionbar{position:sticky;bottom:0;z-index:14}
+  .rotate{display:flex}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+"use strict";
+/* ============ 1. CARD DATA ============
+   Kinds: crew (Dock unit) | man (Manoeuvre, flash-speed spell) | rig (equipment) | ter (Terminus, field)
+   Hooks (all optional, all async): onSummon/onDeath/onUpkeep/onEndTurn/onNerveHit/cast
+   powOf(self,G) -> extra POWER.  kw labels are display-only; behaviour lives in the hooks. */
+
+const CARDS = [
+/* ---- RUST: tempo, Ram, raw POWER ---- */
+{id:"r-scraphand",nm:"Scraphand Brawler",fac:"fr",kind:"crew",cost:1,pow:2,tags:["Crew"],kw:["—"],
+ tex:"Nothing clever. It just hits."},
+{id:"r-rivet",nm:"Rivet the Mute",fac:"fr",kind:"crew",cost:2,pow:3,tags:["Mech"],kw:["Dizzy-safe"],
+ tex:"This Crew can attack the turn it is summoned.",
+ canAttackNow:s=>true},
+{id:"r-hose",nm:"Pressure-Hose Pilot",fac:"fr",kind:"crew",cost:2,pow:2,tags:["Mech"],kw:["Ram"],
+ tex:em("Ram")+" — this Crew may strike the Nerve track even behind "+em("Bulwark")+"."},
+{id:"r-burnergal",nm:"Burnergal",fac:"fr",kind:"crew",cost:3,pow:3,tags:["Crew","Diver"],kw:["Precision"],
+ tex:em("Precision")+" — if you paid its Cost exactly, put the top card of your Deck into your Wreck; this Crew gains +1 POWER per card in your Wreck (max +3).",
+ powOf(s,G){return Math.min(3,G.wreckLen(s.owner));},
+ async onSummon(s,G,pre){if(pre)await G.mill(1,"Burnergal's kick");}},
+{id:"r-salvok",nm:"Salvok, Wreck Shark",fac:"fr",kind:"crew",cost:4,pow:4,tags:["Diver"," veteran"],kw:["Ram","Siphon"],
+ tex:em("Ram. "+em("Siphon")+" — whenever this Crew flips a Nerve pip, draw a card."),
+ async onNerveHit(s,G){await G.draw(1,"Salvok feeds");}},
+{id:"r-ironhook",nm:"Ironhook Boatswain",fac:"fr",kind:"crew",cost:4,pow:3,tags:["Crew"],kw:["One-Shot"],
+ tex:em("One-Shot")+" — once per turn, tap a friendly Crew to give another friendly Crew +2 POWER until end of turn.",
+ async act(s,G){
+   const own=G.crews(s.owner).filter(c=>c!==s&&!c.tapped);
+   if(!own.length)return G.say("Nothing to shift the load onto.");
+   const src=await G.pick("Tap which Crew? (cost of the boost)",own,{ally:true});
+   if(!src)return;
+   const tg=await G.pick("Boost which Crew?",G.crews(s.owner).filter(c=>c!==src),{ally:true});
+   if(!tg)return;
+   src.tapped=true; G.tempPow(tg,2); G.log(`${src.nm} strains — ${tg.nm} +2 POWER.`,"you"); await G.render();
+ }},
+{id:"r-deepsiren",nm:"Deep Siren",fac:"fr",kind:"crew",cost:6,pow:6,tags:["Diver","Flagship"],kw:["Ram","Low Nerve"],
+ tex:em("Ram.")+" While you have 4 or more flipped Nerve pips, this Crew has +2 POWER and any Crew it fights is destroyed.",
+ powOf(s,G){return G.nerveFlipped(s.owner)>=4?2:0;},
+ killsThrough:(s,t,G)=>G.nerveFlipped(s.owner)>=4},
+{id:"r-crewtax",nm:"Crew Tax",fac:"fr",kind:"man",cost:2,tags:["Trick"],kw:[em("Flash")+": strike window"],
+ tex:"Choose an enemy Crew: it gets -2 POWER until end of turn. If that leaves it at 0 or less, destroy it.",tg:{side:"foe",kind:"crew"},
+ async cast(p,G,tg){if(!tg)return; G.tempPow(tg,-2); G.log(`${tg.nm} bleeds steam (-2 POWER).`,"you");
+   if(G.pow(tg)<=0)await G.destroy(tg,"Crew Tax");}},
+{id:"r-rammall",nm:"Ram Down the Hatch",fac:"fr",kind:"man",cost:4,tags:["Trick","Order"],kw:[em("Flash")+": strike window"],
+ tex:"Your Crews get +2 POWER this turn. Each of them may be readied for one extra attack this turn.",
+ async cast(p,G){G.crews(p).forEach(c=>{G.tempPow(c,2);c.extra=(c.extra||0)+1;});
+   G.log("Hatches bang open — everything swings at once.","you");}},
+
+/* ---- TIDE: draw, Scope, Rigs, control ---- */
+{id:"t-clerk",nm:"Manifest Clerk",fac:"ft",kind:"crew",cost:1,pow:1,tags:["Clerk"],kw:["Scope 1"],
+ tex:em("Scope 1")+" — on summon, look at the top card of your Deck and put it back in any order.",
+ async onSummon(s,G){const t=G.deck(s.owner).slice(0,1);if(t.length)await G.scope(t,1);}},
+{id:"t-rigged",nm:"Rigger's Apprentice",fac:"ft",kind:"crew",cost:2,pow:2,tags:["Clerk","Mech"],kw:["Dredge 1"],
+ tex:em("Dredge 1")+" — a Rig in your Wreck may be attached to this Crew when it is summoned.",
+ async onSummon(s,G){const w=G.wreck(s.owner).filter(c=>c.kind==="rig");
+   if(w.length){const r=await G.pick("Dredge a Rig onto "+s.nm+"?",w,{wreckView:true});if(r){await G.equip(s,r,"Dredged");}}}},
+{id:"t-netmender",nm:"Netmender",fac:"ft",kind:"crew",cost:3,pow:2,tags:["Crew"],kw:["Scope 2","Brace"],
+ tex:em("Brace")+" — +2 POWER during your opponent's turn. "+em("Scope 2")+" — on summon, look at the top 2 cards of your Deck and keep none or one.",
+ powOf(s,G){return G.turnOwner!==s.owner?2:0;},
+ async onSummon(s,G){const t=G.deck(s.owner).slice(0,2);if(t.length)await G.scope(t,1);}},
+{id:"t-quietford",nm:"Quiet Ford",fac:"ft",kind:"crew",cost:4,pow:3,tags:["Diver"],kw:["Bulwark","Unity"],
+ tex:em("Bulwark.")+" +1 POWER for each other friendly Crew tagged Diver.",
+ powOf(s,G){return G.crews(s.owner).filter(c=>c!==s&&c.tags.includes("Diver")).length;}},
+{id:"t-insurer",nm:"The Insurer",fac:"ft",kind:"crew",cost:5,pow:3,tags:["Clerk","Fixer"],kw:["One-Shot","Low Nerve"],
+ tex:em("One-Shot")+" — once per turn, tap: flip one of your own Nerve pips face-down again, then your opponent puts 2 cards from their Deck into their Wreck.",
+ canActEveryTurn:true,
+ async act(s,G){if(G.nerveFlipped(s.owner)===0)return G.say("No flipped pips to settle.");
+   G.unflip(s.owner); await G.millBy(G.other(s.owner),2,"The Insurer buys you a quiet night"); G.log("The Insurer stamps the claim. Pip restored.","you");}},
+{id:"t-deadmarch",nm:"Dead Reckoning",fac:"ft",kind:"crew",cost:6,pow:4,tags:["Flagship","Fixer"],kw:["Scope 3","Precision"],
+ tex:em("Scope 3")+" — on summon, look at the top 3 cards of your Deck. "+em("Precision")+" — if you paid its Cost exactly, keep one of them.",
+ async onSummon(s,G,pre){const t=G.deck(s.owner).slice(0,3);if(t.length)await G.scope(t,pre?1:0,"Dead Reckoning");}},
+{id:"t-signaljack",nm:"Signal Jack",fac:"ft",kind:"man",cost:2,tags:["Trick"],kw:[em("Flash")+": any window"],
+ tex:"Enemy Crews with Cost 3 or less cannot attack or use abilities until your next turn. Tap them.",
+ async cast(p,G){G.crews(G.other(p)).filter(c=>c.cost<=3).forEach(c=>{c.locked=true;c.lockedBy=p;c.tapped=true;});
+   G.log("Pipes go dead across the water.","you");}},
+{id:"t-buoydrop",nm:"Buoy Drop",fac:"ft",kind:"man",cost:3,tags:["Trick"],kw:[em("Flash")+": strike window"],
+ tex:"Return an attacking enemy Crew to its owner's Deck (shuffled).",tg:{side:"foe",kind:"attacker"},
+ async cast(p,G,tg){if(!tg)return; await G.bounce(tg,"Buoy Drop");}},
+{id:"t-gaffrig",nm:"Gaff & Chain",fac:"fn",kind:"rig",cost:2,tags:["Rig"],kw:["Ram"],
+ tex:"Attached Crew gets +2 POWER and gains "+em("Ram")+".",
+ powOf(s){return 2;},ram:true},
+{id:"t-cargohook",nm:"Cargo Hook-Rig",fac:"fn",kind:"rig",cost:4,tags:["Rig"],kw:["Dredge 2"],
+ tex:"Attached Crew gets +3 POWER. "+em("Dredge 2")+" — play this from your Wreck for 2 less Cost.",
+ powOf(s){return 3;},dredgeCost:2},
+{id:"t-drydock",nm:"Drydock",fac:"ft",kind:"ter",cost:3,tags:["Terminus"],kw:["One-Shot"],
+ tex:em("One-Shot")+" — once per turn, tap: put a friendly Crew on the bottom of its owner's Deck.",
+ upkeepReady:true,
+ async act(s,G){const own=G.crews(s.owner);if(!own.length)return G.say("Nothing worth hiding.");
+   const t=await G.pick("Slip a Crew into the Dock walls",own,{ally:true});
+   if(t)await G.bounce(t,"Drydock",true);}},
+
+/* ---- GRIT: Bulwark, Unity, Dredge, comeback ---- */
+{id:"g-dogboy",nm:"Deckhand Dogboy",fac:"fg",kind:"crew",cost:1,pow:1,tags:["Muttnick"],kw:["Unity"],
+ tex:em("Unity")+" — +1 POWER for each other friendly Crew tagged Muttnick."},
+{id:"g-tinlid",nm:"Tin Lid Sentinel",fac:"fg",kind:"crew",cost:2,pow:1,tags:["Crew"],kw:["Bulwark"],
+ tex:em("Bulwark")+" — enemy Crews must deal with this Crew before they can reach your Nerve."},
+{id:"g-mule",nm:"Ballast Mule",fac:"fg",kind:"crew",cost:3,pow:3,tags:["Mech"],kw:["Bulwark","Deathspill"],
+ tex:em("Bulwark.")+" "+em("Deathspill")+" — when this Crew is destroyed, put the top card of your Deck into your Wreck.",
+ async onDeath(s,G){await G.mill(1,"Ballast Mule spills its load");}},
+{id:"g-harpo",nm:"Harpoon Choir",fac:"fg",kind:"crew",cost:4,pow:2,tags:["Diver","Choir"],kw:["Unity","Scope 2"],
+ tex:em("Unity")+" — +2 POWER for each other friendly Crew tagged Choir. "+em("Scope 2")+" on summon.",
+ powOf(s,G){return 2*G.crews(s.owner).filter(c=>c!==s&&c.tags.includes("Choir")).length;},
+ async onSummon(s,G){const t=G.deck(s.owner).slice(0,2);if(t.length)await G.scope(t,0);}},
+{id:"g-oldwhal",nm:"Old Whalebone",fac:"fg",kind:"crew",cost:5,pow:5,tags:["Diver","Legend"],kw:["Bulwark","Low Nerve"],
+ tex:em("Bulwark.")+" While you have 4 or more flipped pips, this Crew has +2 POWER and cannot be returned to a Deck.",
+ powOf(s,G){return G.nerveFlipped(s.owner)>=4?2:0;},unbounce:true},
+{id:"g-debrisdive",nm:"Debris Diver",fac:"fg",kind:"crew",cost:4,pow:3,tags:["Diver","Salvage"],kw:["Dredge"],
+ tex:em("Dredge 3")+" — you may play this Crew from your Wreck for 3 less Cost.",
+ disc(s,G){return 0;},dredgeCost:3},
+{id:"g-lastshift",nm:"Last Shift",fac:"fg",kind:"man",cost:2,tags:["Salvage"],kw:[],
+ tex:"Put any two Crews (either side) with total Cost 5 or less from your Wreck onto your Dock, readied.",
+ async cast(p,G){const w=G.wreck(p).filter(c=>c.kind==="crew");if(!w.length)return G.say("Your Wreck is empty.");
+   const a=await G.pick("Dredge first (Cost 5 total max)",w,{wreckView:true});if(!a)return;
+   const b=await G.pick("Dredge second (optional)",w.filter(c=>c!==a&&c.cost+a.cost<=5),{wreckView:true});
+   for(const c of [a,b]){if(!c)continue;if(G.crews(p).length>=G.MAXCREW){G.log("No berth left on the Dock.","sys");break;}
+     await G.summonFromWreck(c,p,"Last Shift");}}},
+{id:"g-nervedamp",nm:"Nerve Dampener",fac:"fn",kind:"man",cost:1,tags:["Repair"],kw:[em("Flash")+": your Nerve would flip"],
+ tex:"Prevent the next Nerve pip from flipping this turn. Then put the top card of your Deck into your Wreck.",
+ async cast(p,G){G.shield(p);G.log("Dampener bites — one hit absorbed.","you");await G.mill(1,"Dampener burn-off");}},
+{id:"g-salvageops",nm:"Salvage Operations",fac:"fg",kind:"ter",cost:2,tags:["Terminus"],kw:["—"],
+ tex:"At your end of turn, if you flipped a Nerve pip this turn, draw a card.",
+ async onEndTurn(p,G){if(G.flippedThisTurn(p))await G.draw(1,"Salvage Operations pays out");}},
+{id:"g-davitcrew",nm:"Davit Crew",fac:"fg",kind:"crew",cost:3,pow:2,tags:["Crew","Salvage"],kw:["Deathspill"],
+ tex:em("Deathspill")+" — when this Crew is destroyed, put the top card of your Deck into your Wreck, then you may play a Crew with Cost 2 or less from your Wreck for free.",
+ async onDeath(s,G){await G.mill(1,"Davit Crew goes over the side");
+   const free=G.wreck(s.owner).filter(c=>c.kind==="crew"&&c.cost<=2);
+   if(free.length&&G.crews(s.owner).length<G.MAXCREW){
+     const t=await G.pick("Dredge something back for free?",free,{wreckView:true});
+     if(t)await G.summonFromWreck(t,s.owner,"Davit Crew");}}},
+{id:"r-ghosthull",nm:"Ghost Hull Lorry",fac:"fn",kind:"crew",cost:5,pow:4,tags:["Mech","Hollow"],kw:["Brace","Ram"],
+ tex:em("Brace")+" — +3 POWER during your opponent's turn. "+em("Ram")+"."},
+{id:"n-lookout",nm:"Masthead Lookout",fac:"fn",kind:"crew",cost:2,pow:1,tags:["Crew"],kw:["Scope 3"],
+ tex:em("Scope 3")+" — on summon, look at the top 3 cards of your Deck and put any of them back in any order; the rest go to the bottom.",
+ async onSummon(s,G){const t=G.deck(s.owner).slice(0,3);if(t.length)await G.scope(t,1);}},
+{id:"n-crowbar",nm:"Crowbar Agreement",fac:"fn",kind:"man",cost:2,tags:["Trick"],kw:[],
+ tex:"Strip a Rig off any Crew, then draw a card.",
+ async cast(p,G){const rigged=G.allCrews().filter(c=>c.rig);
+   if(!rigged.length){G.log("Nothing bolted on to pry loose.","sys");}
+   else{const t=await G.pick("Strip which Rig?",rigged,{});
+     if(t&&t.rig){const rn=t.rig.nm;G.dropRig(t);G.log(`${rn} comes loose.`,"you");}}
+   await G.draw(1,"Crowbar Agreement");}},
+{id:"n-slack",nm:"Slackwater Tide",fac:"fn",kind:"ter",cost:4,tags:["Terminus"],kw:["One-Shot"],
+ tex:em("One-Shot")+" — once per turn, tap: your next Crew with Cost 4 or less this turn costs 2 less to summon.",
+ upkeepReady:true,
+ async act(s,G){s.tapped=true;G.discount(s.owner,2,4);G.log("The water goes still — something slides in cheap.","you");}},
+{id:"r-bonfire",nm:"Wreck Bonfire",fac:"fr",kind:"ter",cost:2,tags:["Terminus"],kw:["One-Shot"],
+ tex:em("One-Shot")+" — once per turn, tap: put the top card of your Deck into your Wreck.",
+ upkeepReady:true,
+ async act(s,G){s.tapped=true;await G.mill(1,"Wreck Bonfire");}},
+{id:"n-girdler",nm:"Girdler",fac:"fn",kind:"crew",cost:3,pow:2,tags:["Hollow","Salvage"],kw:["Dredge","Deathspill"],
+ tex:em("Dredge 2")+". "+em("Deathspill")+" — when destroyed, put the top card of your Deck into your Wreck.",
+ dredgeCost:2,
+ async onDeath(s,G){await G.mill(1,"Girdler goes under");}},
+{id:"n-bosunwife",nm:"The Bosun's Wife",fac:"fn",kind:"crew",cost:4,pow:3,tags:["Crew","Fixer"],kw:["Scope 2","One-Shot"],
+ tex:em("Scope 2")+" on summon. "+em("One-Shot")+" — tap: draw a card, then discard a card.",
+ async onSummon(s,G){const t=G.deck(s.owner).slice(0,2);if(t.length)await G.scope(t,0);},
+ canActEveryTurn:true,
+ async act(s,G){s.tapped=true;await G.draw(1,"The Bosun's Wife sorts the ledger");
+   const h=G.hand(s.owner);if(h.length){const d=await G.pick("Discard one of these",h,{selfHand:true});if(d)await G.dump(d,"Bosun's Wife");}}},
+{id:"n-tallyman",nm:"Tallyman",fac:"fn",kind:"crew",cost:2,pow:2,tags:["Clerk"],kw:["Low Nerve"],
+ tex:"While you have 4 or more flipped Nerve pips, Tallyman has +2 POWER.",
+ powOf(s,G){return G.nerveFlipped(s.owner)>=4?2:0;}},
+{id:"n-tugwar",nm:"Grapnel Lockdown",fac:"fn",kind:"man",cost:3,tags:["Trick"],kw:[em("Flash")+": strike window"],
+ tex:"Tap target Crew and lock it: it cannot attack or use abilities until your next turn.",tg:{side:"any",kind:"crew"},
+   async cast(p,G,tg){if(!tg)return;tg.tapped=true;tg.locked=true;tg.lockedBy=p;G.log(`${tg.nm} is chained to the pilings.`,"you");}},
+{id:"r-dredgerig",nm:"Salvage Winch",fac:"fg",kind:"ter",cost:3,tags:["Terminus"],kw:["Unity-lite"],
+ tex:"Friendly Crews tagged Salvage get +1 POWER.",
+ aura:{tag:"Salvage",pow:1}},
+{id:"g-tidewrecks",nm:"Tidewrack Choir",fac:"ft",kind:"crew",cost:3,pow:2,tags:["Choir"],kw:["Scope 1","Ram"],
+ tex:em("Scope 1")+" on summon. "+em("Ram")+".",
+ async onSummon(s,G){const t=G.deck(s.owner).slice(0,1);if(t.length)await G.scope(t,0);}},
+{id:"n-irony",nm:"Ballast Bonus",fac:"fn",kind:"man",cost:1,tags:["Repair"],kw:[],
+ tex:"Ready a friendly tapped Crew. If you have 4 or more flipped Nerve pips, also give it +2 POWER until end of turn.",tg:{side:"me",kind:"tappedCrew"},
+ async cast(p,G,tg){if(!tg)return;tg.tapped=false;
+   if(G.nerveFlipped(p)>=4){G.tempPow(tg,2);G.log(`${tg.nm} steadies and swings back harder.`,"you");}
+   else G.log(`${tg.nm} is braced and ready again.`,"you");}},
+{id:"n-scrappedown",nm:"Scrap the Downline",fac:"fn",kind:"man",cost:4,tags:["Order"],kw:[],
+ tex:"Destroy all Rigs on enemy Crews. Each enemy Crew with no Rig gets -1 POWER until end of turn.",
+ async cast(p,G){const foe=G.other(p);
+   G.crews(foe).forEach(c=>{if(c.rig){G.dropRig(c);G.log(`${c.nm} stripped.`,"you");}else G.tempPow(c,-1);});}},
+{id:"n-powhands",nm:"Power to the Hold",fac:"fn",kind:"man",cost:2,tags:["Order","Salvage"],kw:[],
+ tex:"Draw 2 cards, then discard 1 card.",
+ async cast(p,G){await G.draw(2,"Power to the Hold");
+   const h=G.hand(p);if(h.length){const d=await G.pick("Discard one",h,{selfHand:true});if(d)await G.dump(d,"Power to the Hold");}}}
+];
+
+/* highlight keyword runs inside rules text */
+function em(s){return `<em>${s}</em>`;}
+const byId=Object.fromEntries(CARDS.map(c=>[c.id,c]));
+const DECK_SIZE=22, MAXCREW=4, NERVE=8, HANDCAP=7, MAXCOPY=2;
+
+/* Which Manoeuvres may be cast out of turn, and under what condition. */
+const FLASH={
+  "r-crewtax":["strike"],"t-buoydrop":["strike"],"r-rammall":["strike"],
+  "n-tugwar":["strike","draw"],"t-signaljack":["strike","draw"],
+  "g-nervedamp":["strike"]
+};
+function flashAllowed(id,win,ctx){
+  const w=FLASH[id];if(!w||!w.includes(win))return false;
+  if(id==="g-nervedamp")return !!ctx.nerveAtt;   // only earns its keep against an imminent Nerve hit
+  if(id==="r-rammall")return false;              // orders are given on your own turn
+  return true;}
+
+/* ready-made decks so a game starts in one click */
+const PRESETS={
+ rust:{nm:"Rust Fleet",fac:"fr",ids:["r-scraphand","r-scraphand","r-rivet","r-rivet","r-hose","r-hose","r-burnergal","r-burnergal",
+   "r-salvok","r-ironhook","r-ghosthull","g-tidewrecks","r-crewtax","r-crewtax","r-rammall","r-bonfire","r-bonfire",
+   "t-gaffrig","t-gaffrig","n-bosunwife","n-crowbar","n-tallyman"]},
+ tide:{nm:"Tide Ledger",fac:"ft",ids:["t-clerk","t-clerk","t-rigged","t-rigged","t-netmender","t-netmender","t-quietford","t-quietford",
+   "t-insurer","t-deadmarch","t-drydock","t-drydock","g-dogboy","g-tidewrecks","n-lookout","n-bosunwife",
+   "t-signaljack","t-signaljack","t-buoydrop","t-buoydrop","t-gaffrig","n-crowbar"]},
+ grit:{nm:"Ballast Choir",fac:"fg",ids:["g-dogboy","g-dogboy","g-dogboy","g-tinlid","g-tinlid","g-mule","g-mule","g-harpo","g-harpo",
+   "g-oldwhal","g-debrisdive","g-debrisdive","g-davitcrew","g-davitcrew","n-girdler","n-girdler","g-tidewrecks",
+   "g-lastshift","g-nervedamp","g-salvageops","g-salvageops","n-irony"]}
+};
+
+/* ============ 2. RULES ENGINE ============
+   Async state machine: every player choice is awaited, so a human click or an AI
+   heuristic both resolve the same promise API (G.pick / G.scope / G.priority). */
+
+let G=null, SEQ=1;
+
+function mkInst(id,owner){const d=byId[id];
+  return{uid:SEQ++,def:d,id:d.id,nm:d.nm,cost:d.cost,kind:d.kind,fac:d.fac,tags:(d.tags||[]).slice(),
+    base:d.pow||0,owner,tapped:false,dizzy:false,locked:false,acted:false,mods:[],rig:null,extra:0};}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function hasKw(u,k){return u.def.kw.some(x=>String(x).includes(k))||(u.rig&&u.rig.def.kw.some(x=>String(x).includes(k)));}
+function hasRam(u){return hasKw(u,"Ram");}
+function dizzyFree(u){return !!u.def.canAttackNow;}
+
+function newGame(deck0,deck1,foeName,humanIdx){
+  const S=[deck0,deck1].map((ids,i)=>({name:i?(foeName||"Marrow"):"You",ai:i!==humanIdx,
+    deck:shuffle(ids.map(id=>mkInst(id,i))),hand:[],crews:[],ter:null,wreck:[],
+    nerve:Array(NERVE).fill(false),shield:0,disc:null,flippedNow:0,dead:false}));
+  G={S,turnOwner:0,actor:0,turnNo:0,over:null,logs:[],hint:"",pending:null,bump:0};
+  for(const p of[0,1])for(let k=0;k<4;k++)drawRaw(p);
+  clog("Two barges nose-to-nose over the tide-line. Flip all eight of their Nerve pips and the wreck is yours.","sys");
+  uiHint("Your move.");
+}
+/* ---- logging ---- */
+/* second-person for you, third-person for the CPU */
+function vs(p,sec,first){return p===0?first:sec;}
+function clog(t,cls){G.logs.push({t,cls:cls||""});if(G.logs.length>400)G.logs.shift();}
+function uiHint(t){G.hint=t;}
+function drawRaw(p){const s=G.S[p];const c=s.deck.shift();
+  if(!c){s.dead=true;return null;}s.hand.push(c);return c;}
+const other=p=>p^1;
+
+/* ---------- lookups ---------- */
+function pow(u){let v=u.base;
+  for(const m of u.mods)v+=m;
+  if(u.rig)v+=(u.rig.def.powOf?u.rig.def.powOf(u,UIG):u.rig.base);
+  const ter=G.S[u.owner].ter;
+  if(ter&&ter.def.aura&&u.tags.includes(ter.def.aura.tag))v+=ter.def.aura.pow;
+  v+=u.extra||0;
+  return Math.max(0,v);}
+let UIG=null; // hook surface handed to card defs
+
+const crews=p=>G.S[p].crews;
+const allCrews=()=>[...crews(0),...crews(1)];
+const wreck=p=>G.S[p].wreck;
+const wreckLen=p=>wreck(p).length;
+const deck=p=>G.S[p].deck;
+const hand=p=>G.S[p].hand;
+const nerveFlipped=p=>G.S[p].nerve.filter(Boolean).length;
+
+/* ---------- zone moves ---------- */
+function toWreck(p,u,why){if(u.rig){wreck(p).push(u.rig);u.rig=null;}
+  wreck(p).push(u);clog(`${u.nm} → Wreck (${why})`,p===0?"you":"foe");}
+async function destroy(u,why){tr("destroy "+u.nm);const p=u.owner;
+  const i=crews(p).indexOf(u);if(i<0)return;
+  crews(p).splice(i,1);
+  if(u.def.onDeath){G.actor=p;await u.def.onDeath(u,UIG);}
+  toWreck(p,u,why);}
+function dumpCard(p,u,why){const h=hand(p);const i=h.indexOf(u);if(i>=0)h.splice(i,1);wreck(p).push(u);
+  clog(`${u.nm} discarded (${why})`,p===0?"you":"foe");}
+async function bounce(u,why,bottom){const p=u.owner;
+  if(u.def.unbounce&&/Buoy|Grapnel|Drydock/.test(why)){clog(`${u.nm} is too bolted-down to move.`,"sys");return;}
+  const i=crews(p).indexOf(u);if(i>=0)crews(p).splice(i,1);
+  u.tapped=false;u.dizzy=false;u.mods=[];
+  if(bottom)G.S[p].deck.push(u);else G.S[p].deck.unshift(u);
+  clog(`${u.nm} → Deck (${why})`,p===0?"you":"foe");}
+async function mill(p,n,why){for(let k=0;k<n;k++){const c=G.S[p].deck.shift();
+  if(!c){G.log="Decked out!";break;}
+  wreck(p).push(c);clog(`${c.nm} spills into the Wreck`,"sys");}
+  if(why)clog(why,p===0?"you":"foe");tr("mill:beforeRender");await UI.render();tr("mill:afterRender");checkOver();}
+async function drawN(p,n,why){for(let k=0;k<n;k++){const c=drawRaw(p);
+  if(!c){clog(vs(p,`${G.S[p].name} cannot draw — the Deck is empty!`,"You cannot draw — the Deck is empty!"),"sys");checkOver();return;}
+  clog(vs(p,`${G.S[p].name} draws.`,"You draw."),c.owner===0?"you":"foe");}
+  if(why)clog(why,p===0?"you":"foe");tr("drawN:beforeRender");await UI.render();tr("drawN:afterRender");}
+function tempPow(u,n){u.mods.push(n);}
+function dropRig(u){if(u.rig){wreck(u.owner).push(u.rig);u.rig=null;}}
+function shieldOn(p){G.S[p].shield++;}
+function discountOn(p,amt,maxCost){G.S[p].disc={amt,maxCost};}
+function unflipNerve(p){const s=G.S[p];const j=s.nerve.map((v,k)=>[v,k]).filter(([v])=>v).pop();
+  if(!j)return false;s.nerve[j[1]]=false;return true;}
+function flippedThisTurn(p){return G.S[p].flippedNow;}
+function wreckHas(p,id){return wreck(p).some(c=>c.id===id);}
+async function summonFromWreck(card,p,why){ /* free/automatic dredge */
+  const i=wreck(p).indexOf(card);if(i>=0)wreck(p).splice(i,1);
+  card.owner=p;card.dizzy=!dizzyFree(card);card.tapped=false;card.mods=[];
+  crews(p).push(card);
+  clog(`${card.nm} is winched back out (${why})`,p===0?"you":"foe");
+  if(card.def.onSummon){G.actor=p;await card.def.onSummon(card,UIG,false);}
+  await UI.render();}
+async function equip(crew,rig,why){const p=crew.owner;
+  const i=wreck(p).indexOf(rig);if(i>=0)wreck(p).splice(i,1);
+  const j=hand(p).indexOf(rig);if(j>=0)hand(p).splice(j,1);
+  if(crew.rig)dropRig(crew);
+  rig.owner=p;crew.rig=rig;
+  clog(`${rig.nm} bolted onto ${crew.nm}${why?` (${why})`:""}`,p===0?"you":"foe");}
+
+/* ---------- nerve ---------- */
+async function flipNerve(p,why){tr("flipNerve");const s=G.S[p];
+  if(s.shield>0){s.shield--;clog(`Nerve Dampener eats the hit. (${why})`,"sys");await UI.render();return false;}
+  const i=s.nerve.findIndex(v=>!v);if(i<0)return true;
+  s.nerve[i]=true;s.flippedNow++;
+  clog(`${s.name}: NERVE PIP ${i+1} flips (${why}).`,"sys");
+  tr("flipNerve: mark");UI.bump();
+  await mill(p,1,"");tr("flipNerve: milled");
+  await UI.render();tr("flipNerve: rendered");
+  return true;}
+
+/* ---------- payment / playing cards ---------- */
+function reqCost(p,u,from){let c=u.cost;
+  if(from==="wreck"&&u.def.dredgeCost)c=Math.max(1,c-u.def.dredgeCost);
+  const d=G.S[p].disc;
+  if(d&&c<=d.maxCost)c=Math.max(0,c-d.amt);
+  return c;}
+function payable(p,c){if(c<=0)return true;return hand(p).reduce((a,u)=>a+u.cost,0)>=c;}
+function legalPlay(p,u){
+  if(u.kind==="crew"&&crews(p).length>=MAXCREW)return"No free berth on your Dock.";
+  if(u.kind==="rig"&&!rigTargets(p).length)return"No Crew of yours is bare.";
+  return"";}
+
+/* Where does a card want to choose something before we take the money? */
+function preTarget(p,u,from){
+  if(u.kind==="rig")return{list:rigTargets(p),opts:{ally:true,self:p},title:`Rig which Crew for ${u.nm}?`};
+  if(u.kind==="man"&&u.def.tg){const list=targetList(p,u.def.tg);return{list,opts:targetOpts(u.def.tg,p),title:`Target for ${u.nm}?`};}
+  return null;}
+
+/* play one card from hand or wreck; returns true if it resolved */
+async function playCard(p,u,from){tr("playCard "+u.nm+" from "+from);
+  const need=reqCost(p,u,from);
+  const why=legalPlay(p,u);if(why){clog(why,"sys");UI.hint(why);return false;}
+  if(!payable(p,need)){clog(`Cannot cover Cost ${need} for ${u.nm}.`,"sys");return false;}
+  let tg=null;
+  const pre=preTarget(p,u,from);
+  if(pre){if(!pre.list.length){clog("No legal target — "+u.nm+" stays in hand.","sys");return false;}
+    tg=await UI.pick(pre.title,pre.list,pre.opts);
+    if(!tg){UI.hint(u.nm+" held back.");return false;}}
+  let paid=[];
+  if(need>0){paid=await UI.pay(p,need,u);if(!paid){UI.hint("Payment cancelled.");return false;}}
+  if(from==="wreck"){const i=wreck(p).indexOf(u);if(i>=0)wreck(p).splice(i,1);}
+  else{const i=hand(p).indexOf(u);if(i>=0)hand(p).splice(i,1);}
+  for(const c of paid)dumpCard(p,c,`pay ${u.nm}`);
+  G.S[p].disc=null;
+  await placeOnBoard(p,u,from,paid.reduce((a,c)=>a+c.cost,0)===need,tg);
+  return true;}
+
+async function placeOnBoard(p,u,from,exact,tg){tr("place "+u.nm);
+  u.owner=p;
+  if(u.kind==="crew"){
+    u.dizzy=!dizzyFree(u);crews(p).push(u);
+    clog(vs(p,`${G.S[p].name} puts out ${u.nm}`,"You put out "+u.nm)+(from==="wreck"?" (dredged).":"."),p===0?"you":"foe");
+    if(u.def.onSummon){G.actor=p;tr("onSummon "+u.nm);await u.def.onSummon(u,UIG,exact);}
+    if(exact&&hasKw(u,"Precision"))clog(`${u.nm}: paid to the nail — Precision holds.`,"sys");
+  }else if(u.kind==="rig"){
+    if(!tg){hand(p).push(u);return;}
+    await equip(tg,u);
+  }else if(u.kind==="ter"){
+    const old=G.S[p].ter;G.S[p].ter=u;
+    if(old){wreck(p).push(old);clog(`${old.nm} is dismantled.`,"sys");}
+    clog(vs(p,`${G.S[p].name} opens ${u.nm}.`,"You open "+u.nm+"."),p===0?"you":"foe");
+  }else{ // manoeuvre
+    await u.def.cast(p,UIG,tg);
+    wreck(p).push(u);
+  }
+  await UI.render();checkOver();}
+
+function rigTargets(p){return crews(p).filter(c=>!c.rig);}
+function targetList(spec,p){const foe=other(p);
+  if(spec.kind==="attacker")return crews(foe).filter(c=>c.attacking);
+  if(spec.kind==="tappedCrew")return crews(p).filter(c=>c.tapped&&!c.locked);
+  if(spec.kind==="crew")return spec.side==="foe"?crews(foe):spec.side==="me"?crews(p):allCrews();
+  return[];}
+function targetOpts(spec,p){return{foe:spec.side==="foe",ally:spec.side==="me",any:spec.side==="any",self:p};}
+
+/* ---------- abilities (One-Shot) ---------- */
+function canAct(u){const p=u.owner;
+  if(!u.def.act||u.locked||u.acted)return false;
+  if(G.turnOwner!==p)return false;
+  if(u.def.canActEveryTurn)return true;
+  return!u.tapped;}
+async function useAct(u){if(!canAct(u))return;
+  u.acted=true;if(!u.def.canActEveryTurn)u.tapped=true;
+  G.actor=u.owner;await u.def.act(u,UIG);await UI.render();checkOver();}
+
+/* ---------- combat ---------- */
+function readyToAttack(p){return crews(p).filter(u=>!u.tapped&&!u.locked&&!u.dizzy);}
+function walls(p){return crews(p).filter(c=>hasKw(c,"Bulwark")&&!c.tapped&&!c.locked);}
+function atkTargets(u){ /* u belongs to the active player */
+  const foe=other(G.turnOwner),w=walls(foe);
+  return{units:w.length?crews(foe).filter(c=>w.includes(c)):crews(foe),
+    nerve:(!w.length||hasRam(u))&&!G.over,walls:w};}
+
+async function attackWith(u,foe){tr("attackWith");
+  const t=atkTargets(u);
+  if(foe==="nerve"&&!t.nerve){clog(`${u.nm} cannot reach the Nerve behind Bulwark.`,"sys");return;}
+  if(foe!=="nerve"&&!t.units.includes(foe)){clog(`${u.nm} is out of reach — Bulwark stands in front.`,"sys");return;}
+  const p=G.turnOwner;
+  u.tapped=true;u.attacking=true;
+  UI.hint(`${u.nm} lunges at ${foe==="nerve"?"the Nerve":foe.nm}.`);UI.fx("STRIKE");
+  await UI.render();
+  await priority(other(p),"strike",{attacker:u,nerveAtt:foe==="nerve"});
+  if(!u.attacking)return; // flashed out of the attack
+  if(foe==="nerve"){
+    const hit=await flipNerve(other(p),`${u.nm} lands on the Nerve`);
+    tr("attackWith:hit="+hit);
+    if(hit&&u.def.onNerveHit){G.actor=p;tr("attackWith:onNerveHit "+u.nm);await u.def.onNerveHit(u,UIG);tr("attackWith:onNerveHit done");}
+  }else{
+    const ap=pow(u),dp=pow(foe);
+    clog(`${u.nm} (${ap}) strikes ${foe.nm} (${dp}).`,"sys");
+    await UI.render();
+    const killThru=u.def.killsThrough?u.def.killsThrough(u,foe,UIG):false;
+    const dDies=killThru||dp<=ap,uDies=ap<=dp;
+    if(dDies)await destroy(foe,"combat");
+    if(uDies&&u.attacking)await destroy(u,"combat");
+    else if(!dDies)clog(`${foe.nm} holds the line.`,"sys");
+  }
+  u.attacking=false;
+  await UI.render();checkOver();tr("attackWith:end");}
+
+/* ---------- flash priority ---------- */
+function flashOptions(p,win,ctx){ctx=ctx||{};
+  return hand(p).filter(u=>u.kind==="man"&&u.def.cast&&flashAllowed(u.id,win,ctx))
+  .filter(u=>payable(p,reqCost(p,u,"hand")));}
+async function priority(p,win,ctx){tr("priority "+p+" "+win);
+  if(G.over)return;
+  const opts=flashOptions(p,win,ctx);
+  if(!opts.length)return;
+  if(G.S[p].ai){const use=await AI.flash(p,win,opts,ctx);if(use)await resolveFlash(p,use,ctx);return;}
+  const use=await UI.priority(p,win,opts,ctx);
+  if(use)await resolveFlash(p,use,ctx);}
+async function resolveFlash(p,u,ctx){tr("flash "+u.nm);
+  const need=reqCost(p,u,"hand");
+  let tg=null;
+  if(u.def.tg){
+    const list=u.def.tg.kind==="attacker"&&ctx.attacker?[ctx.attacker]:targetList(p,u.def.tg);
+    if(!list.length){clog(`${u.nm} held — no legal target.`,"sys");return;}
+    tg=list.length===1?list[0]:(G.S[p].ai?AI.pickTarget(u,list,ctx):await UI.pick("Target for "+u.nm,list,targetOpts(u.def.tg,p)));
+    if(!tg)return;}
+  let paid=[];
+  if(need>0){paid=G.S[p].ai?AI.choosePayment(p,need,u):await UI.pay(p,need,u);
+    if(!paid){clog(`${u.nm} kept back.`,"sys");return;}}
+  const i=hand(p).indexOf(u);if(i>=0)hand(p).splice(i,1);
+  for(const c of paid)dumpCard(p,c,`pay ${u.nm}`);
+  G.actor=p;await u.def.cast(p,UIG,tg);wreck(p).push(u);
+  await UI.render();checkOver();}
+
+/* ---------- turn cycle ---------- */
+function checkOver(){
+  if(G.over)return G.over;
+  const dead=[0,1].map(p=>nerveFlipped(p)>=NERVE||G.S[p].dead);
+  if(dead[0]&&dead[1])G.over={win:-1,why:"Both barges went under in the same minute."};
+  else if(dead[1])G.over={win:0,why:nerveFlipped(1)>=NERVE?"Their Nerve track is flat — the wreck is yours.":"Their Deck ran dry."};
+  else if(dead[0])G.over={win:1,why:nerveFlipped(0)>=NERVE?"Your Nerve is gone. They take the cargo.":"Your Deck ran dry."};
+  if(G.over)UI.gameOver(G.over);
+  return G.over;}
+
+async function beginTurn(p){
+  G.turnOwner=p;G.actor=p;G.turnNo++;
+  const s=G.S[p];s.flippedNow=0;s.disc=null;s.shield=0;
+  crews(p).forEach(u=>{u.tapped=false;u.dizzy=false;u.acted=false;u.mods=[];});
+  allCrews().forEach(u=>{if(u.lockedBy===p)u.locked=false;});
+  if(s.ter){s.ter.tapped=false;s.ter.acted=false;}
+  UI.hint(`${s.name} ${p===0?"— your turn.":"is up."}`);
+  await UI.render();
+  if(G.turnNo>1){const c=drawRaw(p);
+    if(!c){checkOver();return;}
+    clog(vs(p,`${s.name} draws.`,"You draw."),p===0?"you":"foe");await UI.render();
+    await priority(other(p),"draw",{});}}
+
+async function endTurn(p){
+  G.actor=p;
+  const ter=G.S[p].ter;
+  if(ter&&ter.def.onEndTurn)await ter.def.onEndTurn(p,UIG);
+  crews(p).forEach(u=>{u.mods=[];u.def&&0;});
+  G.S[p].disc=null;
+  await UI.render();}
+
+/* ---------- hook surface given to every card definition ---------- */
+UIG={
+ get turnOwner(){return G.turnOwner;},
+ get over(){return !!G.over;},
+ MAXCREW,NERVE,HANDCAP,
+ crews,wreck,deck,hand,allCrews,wreckLen,wreckHas,other,pow,nerveFlipped,flippedThisTurn,
+ hasRam,hasKw,dizzyFree,readyToAttack,atkTargets,rigTargets,canAct,useAct,checkOver,
+ log:(t,c)=>clog(t,c),say:t=>UI.say(t),hint:t=>UI.hint(t),render:()=>UI.render(),
+ draw:(n,why)=>drawN(G.actor,n,why),mill:(n,why)=>mill(G.actor,n,why),millBy:(p,n,why)=>mill(p,n,why),
+ destroy,bounce,dump:(u,why)=>dumpCard(G.actor,u,why),tempPow:(u,n)=>u.mods.push(n),
+ shield:shieldOn,discount:discountOn,unflip:unflipNerve,dropRig,
+ play:(p,u,from)=>playCard(p,u,from),attack:(u,foe)=>attackWith(u,foe),
+ pick:(t,l,o)=>UI.pick(t,l,o),scope:(c,t,ti)=>UI.scope(c,t,ti),
+ summonFromWreck,equip,turnNo:()=>G.turnNo
+};
+
+
+
+/* ============ 3. AI OPPONENT ============
+   "Marrow" — greedy but not stupid: pays as cheaply as it can, values favourable
+   trades, looks for lethal, and keeps its interrupts for the right moment. */
+
+const CHAT={
+ open:["Winch's running. Hope you brought ballast.","Tide's with me today, chief."],
+ big:["That one's heavy.","Nice toy. Mine now."],
+ nerve:["Hold your nerve then!","Ker-ching. Pip over."],
+ hurt:["Cheap shot.","Sew it up and get back on deck."],
+ low:["Bad ledger. Worse night.","I've survived worse than you."],
+ kill:["Down into the Wreck with it.","That's cargo now."]
+};
+const talk=k=>{const a=CHAT[k];if(!a)return"";return a[Math.floor(Math.random()*a.length)];};
+
+/* cheapest subset of hand whose total Cost >= need */
+function bestPayment(p,need,keep){
+  const h=hand(p).filter(c=>!keep||!keep.has(c));
+  let best=null;
+  const n=Math.min(h.length,9);
+  for(let m=0;m<(1<<n);m++){
+    let t=0,cnt=0;const set=[];
+    for(let i=0;i<n;i++)if(m>>i&1){t+=h[i].cost;cnt++;set.push(h[i]);}
+    if(t<need)continue;
+    const score=(t-need)*100+cnt*6+t;   // exact beats overpay; fewer cards beats more
+    if(!best||score<best.score)best={score,set};}
+  return best?best.set:null;}
+
+const val=u=>u.kind==="crew"?u.cost*2+(u.base||0):u.cost+2;
+
+const AI={
+ think(ms=420){return new Promise(r=>setTimeout(r,ms));},
+
+ /* ---------- main turn ---------- */
+ async playTurn(p){
+  tr("turn "+p);
+  if(!G.S[p].chat){G.S[p].chat=1;UI.say(talk("open"));}
+  await this.acts(p);
+  for(let guard=0;guard<9;guard++){
+    const play=await this.bestPlay(p);
+    if(!play)break;
+    tr("play "+play.u.nm);const ok=await playCard(p,play.u,"hand");
+    if(!ok)break;
+    if(play.u.cost>=5)UI.say(talk("big"));
+    await this.acts(p);
+    await this.think(360);
+    if(G.over)return;}
+  await this.attacks(p);
+  if(!G.over)await this.acts(p,true);
+ },
+
+ /* One-Shot abilities worth using */
+ async acts(p,late){
+  const units=[...crews(p),G.S[p].ter].filter(Boolean);
+  for(const u of units){
+   if(!canAct(u))continue;
+   const id=u.id;
+   if(id==="r-bonfire"&&(wreckLen(p)<3||crews(p).some(c=>c.def.dredgeCost)))await useAct(u);
+   else if(id==="n-slack"&&!late){const big=hand(p).filter(c=>c.kind==="crew"&&c.cost>=3&&c.cost<=4);
+     if(big.length)await useAct(u);}
+   else if(id==="t-drydock"&&late){const safe=crews(p).sort((a,b)=>val(b)-val(a))[0];
+     if(safe&&allCrews().some(c=>c.owner!==p&&pow(c)>=5))await useAct(u);}
+   else if(u.def.canActEveryTurn&&id==="t-insurer"&&nerveFlipped(p)>=2)await useAct(u);
+   if(G.over)return;}
+ },
+
+ /* ---------- what to play ---------- */
+ bestPlayable(p){
+  const opts=[];
+  for(const u of hand(p)){
+   if(legalPlay(p,u))continue;
+   const need=reqCost(p,u,"hand");
+   if(!payable(p,need))continue;
+   if(u.kind==="rig"&&!rigTargets(p))continue;
+   let v=val(u)-need*1.2;
+   if(u.kind==="crew"){v+=pow(u)*.6;if(hasKw(u,"Bulwark")&&nerveFlipped(p)>=2)v+=3;}
+   if(u.kind==="man"){if(!this.spellGood(p,u))continue;v+=1;}
+   opts.push({u,score:v});
+  }
+  return opts;},
+
+ spellGood(p,u){
+  const foe=other(p);
+  switch(u.id){
+   case "r-crewtax":return crews(foe).some(c=>pow(c)<=2||pow(c)<=this.biggest(foe));
+   case "n-tugwar":return crews(foe).some(c=>pow(c)>=4);
+   case "t-buoydrop":return false;                 // save it for the strike window
+   case "t-signaljack":return crews(foe).filter(c=>c.cost<=3).length>=2;
+   case "g-lastshift":return wreck(p).filter(c=>c.kind==="crew").length>=1;
+   case "n-irony":return crews(p).some(c=>c.tapped&&!c.locked&&pow(c)>=3);
+   case "g-nervedamp":return false;
+   case "n-gaffrig":break;
+   case "n-crowbar":return allCrews().some(c=>c.rig&&c.owner!==p);
+   case "n-scrappedown":return crews(foe).some(c=>c.rig);
+   case "n-powhands":return hand(p).length<=4;
+   case "r-rammall":return readyToAttack(p).length>=2;
+   default:break;}
+  return true;},
+ biggest(p){return crews(p).reduce((a,c)=>Math.max(a,pow(c)),0);},
+
+ async bestPlay(p){
+  const list=this.bestPlayable(p).sort((a,b)=>b.score-a.score);
+  for(const cand of list){
+   const u=cand.u;
+   const pay=bestPayment(p,reqCost(p,u,"hand"));
+   if(!pay)continue;
+   return{u,pay};}
+  return null;},
+
+ /* ---------- payment + picks ---------- */
+ choosePayment(p,need,u){return bestPayment(p,need,new Set([u]));},
+
+ async pickTarget(u,list,ctx){
+  if(!list||!list.length)return null;
+  const foe=other(G.actor);
+  const scoreU=w=>{
+   if(u.id==="n-irony")return pow(w);                       // ready the biggest fist
+   if(u.kind==="rig"||u.def&&u.kind==="rig")return pow(w);   // bolt onto the biggest Crew
+   if(w.owner===foe)return pow(w)+w.cost*.4+(w.def.onNerveHit?3:0);
+   return pow(w)+w.cost;};
+  const big=list.slice().sort((a,b)=>scoreU(b)-scoreU(a));
+  if(u.id==="g-nervedamp")return big[0];
+  if(u.id==="n-tugwar"||u.id==="t-signaljack")return big[0];
+  return big[0];},
+
+ /* generic chooser for anything the engine asks a player to pick */
+ async choose(list,opts){
+  if(!list||!list.length)return null;
+  const byCost=list.slice().sort((a,b)=>b.cost-a.cost);
+  if(opts&&opts.wreckView)return byCost[0];                 // dredge the fattest thing available
+  return byCost[0];},
+
+ /* ---------- combat plan ---------- */
+ async attacks(p){
+  tr("attacks "+p);
+  const foe=other(p);
+  let guard=0;
+  while(!G.over&&guard++<12){
+   const ready=readyToAttack(p);
+   if(!ready.length)break;
+   const walls=wallsOf(foe);
+   const openNerve=!walls.length;
+   let plan=null;
+   for(const u of ready){
+    const t=atkTargetsFor(u);
+    // 1. lethal across the Nerve
+    if(t.nerve){if(!plan)plan={u,foe:"nerve",score:100};}
+    // 2. kill a Crew and survive
+    for(const c of t.units){
+     const ap=pow(u),dp=pow(c);
+     if(dp<=ap&&ap>dp){const s=10+val(c)-ap*.5;if(!plan||s>plan.score)plan={u,foe:c,score:s};}
+     // 3. favourable-ish trade into a big threat
+     if(dp<=ap&&ap<=dp&&pow(c)>=4){const s=8+pow(c)*.7;if(!plan||s>plan.score)plan={u,foe:c,score:s};}
+    }
+   }
+   // 4. chip the Nerve with anything that can reach it
+   if(!plan&&openNerve)plan={u:ready[0],foe:"nerve",score:5};
+   if(!plan){
+    const rammer=ready.find(u=>hasRam(u));
+    if(rammer)plan={u:rammer,foe:"nerve",score:4};}
+   if(!plan)break;
+   const before=nerveFlipped(foe);
+   tr("attack "+plan.u.nm+" -> "+(plan.foe==="nerve"?"NERVE":plan.foe.nm));await attackWith(plan.u,plan.foe);
+   if(nerveFlipped(foe)>before)UI.say(talk("nerve"));
+   await this.think(320);tr("attacks:next");}
+  tr("attacks:done");
+ }
+};
+function wallsOf(p){return crews(p).filter(c=>hasKw(c,"Bulwark")&&!c.tapped&&!c.locked);}
+function atkTargetsFor(u){const foe=other(G.turnOwner),w=wallsOf(foe);
+  return{units:w.length?crews(foe).filter(c=>w.includes(c)):crews(foe),nerve:(!w.length||hasRam(u))};}
+
+/* ---------- interrupt logic ---------- */
+AI.flash=async function(p,win,opts,ctx){
+  const a=ctx.attacker,rank=i=>({ "g-nervedamp":100,"t-buoydrop":80,"n-tugwar":60,"r-crewtax":40,"t-signaljack":20}[i]||0);
+  const cands=opts.filter(u=>this.wouldCast(p,u,win,ctx));
+  if(!cands.length)return null;
+  const u=cands.sort((x,y)=>rank(y.id)-rank(x.id))[0];
+  UI.say(win==="strike"?talk("hurt"):talk("open"));
+  return u;};
+AI.wouldCast=function(p,u,win,ctx){
+  const a=ctx.attacker;
+  switch(u.id){
+   case "g-nervedamp":return ctx.nerveAtt&&nerveFlipped(p)>=4;
+   case "t-buoydrop":return a&&pow(a)>=5&&a.owner!==p;
+   case "n-tugwar":return a&&pow(a)>=5;
+   case "r-crewtax":return a&&pow(a)>=3&&(ctx.nerveAtt||crews(p).some(c=>!c.tapped&&pow(c)+2>=pow(a)&&pow(c)<pow(a)));
+   case "t-signaljack":return ctx.attacker&&readyToAttack(other(p)).length>=2;
+   default:return false;}
+};
+
+
+/* ---------- modal layer (promises the engine waits on) ---------- */
+function sheet({title,body,acts,wide}){
+  if(window.__NOMODALS){const st=(new Error().stack||"").split("\n").slice(1,5).join(" <- ");
+    throw new Error("MODAL IN HEADLESS SIM: "+title+" @ "+st);}
+  return new Promise(res=>{
+    const veil=document.createElement("div");
+    veil.className="veil";
+    veil.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="${(title||"dialog").replace(/"/g,"'")}" style="${wide?"max-width:920px":""}">
+      <div class="grab" aria-hidden="true"></div>
+      <h2>${title}</h2><div class="body">${body}</div>
+      <div class="acts"></div></div>`;
+    if(UI.modal)UI.modal.close(null);            // one sheet at a time
+    const bar=veil.querySelector(".acts");
+    const close=v=>{veil.remove();if(UI.modal&&UI.modal.el===veil)UI.modal=null;res(v);};
+    (acts||[]).forEach(a=>{
+      const b=document.createElement("button");
+      b.className="btn "+(a.cls||"");b.textContent=a.label;
+      b.onclick=ev=>{ev.stopPropagation();a.fn?a.fn(veil,close):close(a.val===undefined?null:a.val);};
+      bar.appendChild(b);});
+    UI.modal={el:veil,close};
+    document.getElementById("modals").appendChild(veil);
+    requestAnimationFrame(()=>{(bar.querySelector(".btn.go")||bar.querySelector(".btn")||veil.querySelector("button"))?.focus();});
+  });
+}
+
+/* generic chooser — dispatches to the AI when the AI is the one being asked */
+async function UI_pick(title,list,opts){
+  opts=opts||{};
+  if(!list||!list.length)return null;
+  const ai=G.S[G.actor].ai;
+  if(ai)return AI.choose(list,opts);
+  if(window.__NOMODALS)throw new Error("headless pick: "+title+" | actor="+G.actor+" ai0="+G.S[0].ai+" ai1="+G.S[1].ai);
+  if(list.length===1&&!opts.multi)return list[0];
+  const body=`<p class="lk">${title}</p><div class="grid">${
+    list.map((u,i)=>`<div class="cell" data-i="${i}">${cardHTML(u,{cls:"mini"})}
+      <div class="cn">${u.nm}</div>
+      <div class="cc"><span>cost ${u.cost}</span>${u.kind==="crew"?`<span>P ${pow(u)}</span>`:""}
+      ${opts.wreckView&&u.def.dredgeCost?`<span style="color:var(--amber)">dredge −${u.def.dredgeCost}</span>`:""}</div>
+      </div>`).join("")}</div>`;
+  return new Promise(res=>{
+    sheet({title:"Choose a target",body,wide:true});
+    const m=UI.modal.el;
+    const done=v=>{m.remove();UI.modal=null;res(v);};
+    m.querySelectorAll(".cell").forEach(c=>c.onclick=()=>done(list[+c.dataset.i]));
+    const b=document.createElement("button");b.className="btn";b.textContent="Cancel";
+    b.onclick=()=>done(null);m.querySelector(".acts").appendChild(b);
+  });}
+
+/* discard-to-pay selector */
+async function UI_pay(p,need,u){
+  if(G.S[p].ai)return bestPayment(p,need,new Set([u]));
+  if(window.__NOMODALS)throw new Error("headless pay: "+u.nm+" p="+p+" ai="+G.S[p].ai);
+  const h=hand(p).slice();
+  const chosen=new Set();
+  const body=`<p class="lk">Discard cards whose printed Cost totals <b style="color:var(--amber)">${need}</b> or more
+    to bring out <b>${u.nm}</b>. Paying <b>exactly</b> keeps Precision alive.</p>
+    <div class="grid" id="paygrid">${h.map((c,i)=>`<div class="cell" data-i="${i}">
+      ${cardHTML(c,{cls:"mini"})}<div class="cn">${c.nm}</div><div class="cc">cost ${c.cost}</div></div>`).join("")}</div>
+    <div class="kv" id="paysum"><span>Total paid</span><b>0 / ${need}</b></div>`;
+  return new Promise(res=>{
+    sheet({title:"Pay the Cost",body,wide:true,acts:[]});
+    const m=UI.modal.el;
+    const sum=m.querySelector("#paysum b");
+    const done=v=>{m.remove();UI.modal=null;res(v);};
+    m.querySelectorAll("#paygrid .cell").forEach(cell=>cell.onclick=()=>{
+      const c=h[+cell.dataset.i];
+      if(chosen.has(c)){chosen.delete(c);cell.classList.remove("marked");}
+      else{chosen.add(c);cell.classList.add("marked");cell.style.outline="2px solid var(--amber)";}
+      const t=[...chosen].reduce((a,c)=>a+c.cost,0);
+      sum.textContent=`${t} / ${need}`;
+      sum.style.color=t>=need?"var(--good)":"var(--paper)";
+      goBtn.disabled=t<need;});
+    const bar=m.querySelector(".acts");
+    const goBtn=document.createElement("button");
+    goBtn.className="btn go";goBtn.textContent="Pay & play";goBtn.disabled=true;
+    goBtn.onclick=()=>done([...chosen]);
+    const cx=document.createElement("button");
+    cx.className="btn";cx.textContent="Cancel";cx.onclick=()=>done(null);
+    bar.appendChild(cx);bar.appendChild(goBtn);
+  });};
+
+/* peek at the top of the Deck; takes move from Deck to Hand */
+async function UI_scope(cards,take,title){
+  take=take||0;
+  if(!cards.length)return[];
+  const p=G.actor;
+  const commit=got=>{
+    for(const c of got){const i=deck(p).indexOf(c);if(i>=0)deck(p).splice(i,1);
+      c.owner=p;hand(p).push(c);clog(`${c.nm} pulled up from the top of the Deck.`,p===0?"you":"foe");}
+    UI.render();};
+  if(G.S[p].ai){
+    const best=cards.slice().sort((a,b)=>b.cost-a.cost)[0];
+    if(take>0&&best){commit([best]);return;}
+    return;}
+  if(window.__NOMODALS)throw new Error("headless scope asked of player "+p);
+  const body=`<p class="lk">${title||"Scope"} — ${take?`look at these and take up to <b style="color:var(--amber)">${take}</b> into hand; the rest go back on top of the Deck in the same order.`:`look, then put them all back on top of the Deck in the same order.`}</p>
+    <div class="grid">${cards.map((c,i)=>`<div class="cell" data-i="${i}">${cardHTML(c,{cls:"mini"})}
+      <div class="cn">${c.nm}</div><div class="cc">cost ${c.cost}</div></div>`).join("")}</div>`;
+  const chosen=new Set();
+  return new Promise(res=>{
+    sheet({title:"Scoped cards",body,wide:true});
+    const m=UI.modal.el;const bar=m.querySelector(".acts");
+    const done=v=>{m.remove();UI.modal=null;commit(v||[]);res(v||[]);};
+    const go=document.createElement("button");go.className="btn go";go.textContent="Take";go.disabled=true;
+    const no=document.createElement("button");no.className="btn";no.textContent=take?"Leave them":"Back on top";
+    m.querySelectorAll(".grid .cell").forEach(cell=>cell.onclick=()=>{
+      const c=cards[+cell.dataset.i];
+      if(chosen.has(c)){chosen.delete(c);cell.style.outline="";}
+      else if(chosen.size<take){chosen.add(c);cell.style.outline="2px solid var(--amber)";}
+      go.disabled=chosen.size===0;});
+    go.onclick=()=>done([...chosen]);no.onclick=()=>done([]);
+    bar.appendChild(no);if(take)bar.appendChild(go);
+  });}
+
+/* out-of-turn window for the human defender */
+async function UI_priority(p,win,opts,ctx){
+  if(window.__NOMODALS)throw new Error("headless priority p="+p+" win="+win);
+  const why=win==="draw"?"just drew — you may answer the draw":"is striking — you may answer before damage";
+  const body=`<p class="lk">Marrow ${why}. ${ctx.attacker?`Incoming: <b>${ctx.attacker.nm}</b> at POWER ${pow(ctx.attacker)}${ctx.nerveAtt?" — aimed at YOUR NERVE":""}.`:""}</p>
+   <div class="grid">${opts.map(u=>`<div class="cell" data-id="${u.uid}">${cardHTML(u,{cls:"mini"})}
+     <div class="cn">${u.nm}</div><div class="cc">cost ${reqCost(p,u,"hand")}</div></div>`).join("")}</div>`;
+  return new Promise(res=>{
+    sheet({title:"Priority",body,wide:true});
+    const m=UI.modal.el;const bar=m.querySelector(".acts");
+    const done=v=>{m.remove();UI.modal=null;res(v);};
+    m.querySelectorAll(".grid .cell").forEach(cell=>cell.onclick=()=>{
+      done(opts.find(x=>x.uid===+cell.dataset.id));});
+    const kp=document.createElement("button");kp.className="btn go";kp.textContent="Keep priority";
+    kp.onclick=()=>done(null);bar.appendChild(kp);
+  });}
+
+async function UI_gameOver(r){
+  const win=r.win===0;
+  await sheet({title:"The tide decides",body:`<div class="goname ${win?"w":"l"}">${win?"SALVAGE":"LOST TO THE SLACK"}</div>
+    <p style="text-align:center;color:var(--mute);margin-top:10px">${r.why}</p>
+    <div class="kv"><span>Turns played</span><b>${Math.ceil(G.turnNo/2)}</b></div>
+    <div class="kv"><span>Your flipped pips</span><b>${nerveFlipped(0)} / ${NERVE}</b></div>
+    <div class="kv"><span>Their flipped pips</span><b>${nerveFlipped(1)} / ${NERVE}</b></div>
+    <div class="kv"><span>Cards in your Wreck</span><b>${wreckLen(0)}</b></div>`,
+   acts:[{label:"Row out again",cls:"go"}]});
+ startGame(currentDeck(),PRESETS[foePreset()].ids,"Marrow");}
+
+
+
+const GLYPH={crew:"⚓",diver:"◍",mech:"⚙",clerk:"▤",choir:"♪",hollow:"◈",legend:"✦",
+  rig:"⛓",ter:"▥",man:"⚡",flag:"⌖",mutt:"❖",nullkind:"◆"};
+function glyphOf(u){
+  if(u.kind==="rig")return GLYPH.rig;
+  if(u.kind==="ter")return GLYPH.ter;
+  if(u.kind==="man")return GLYPH.man;
+  const t=(u.tags||[]).map(s=>s.toLowerCase());
+  if(t.some(x=>x.includes("legend")||x.includes("flagship")))return GLYPH.legend;
+  if(t.some(x=>x.includes("diver")))return GLYPH.diver;
+  if(t.some(x=>x.includes("mech")||x.includes("hollow")))return GLYPH.mech;
+  if(t.some(x=>x.includes("clerk")||x.includes("fixer")))return GLYPH.clerk;
+  if(t.some(x=>x.includes("choir")))return GLYPH.choir;
+  if(t.some(x=>x.includes("salvage")||x.includes("mutt")))return GLYPH.mutt;
+  return GLYPH.crew;}
+
+function cardHTML(u,o){
+  o=o||{};
+  if(o.back)return `<div class="card ${o.cls||""} fn"><div class="face">◈</div>`
+   +`<div class="c-band">SLACKWATER</div></div>`;
+  const p=o.pow!==undefined?o.pow:(u.kind==="crew"?pow(u):null);
+  const kw=(u.def.kw||[]).filter(k=>k&&k!=="—").map(k=>k.replace(/<[^>]+>/g,"")).slice(0,2).join(" · ");
+  return `<div class="card ${u.fac} ${u.kind!=="crew"?(u.kind==="rig"?"rig":u.kind==="ter"?"term":"spell"):""} ${o.cls||""}"
+    data-uid="${u.uid}" data-zone="${o.zone||""}">
+    <div class="cost">${u.cost}</div>${u.kind==="crew"?`<div class="wage">${u.base}</div>`:""}
+    <div class="face">${glyphOf(u)}</div>
+    <div class="ctag">${u.kind==="crew"?"CREW":u.kind==="rig"?"RIG":u.kind==="ter"?"TERMINUS":"MANOEUVRE"}</div>
+    <div class="cname">${u.nm}</div>
+    ${p!==null?`<div class="cp${(u.mods.length||u.extra)?" mod":""}">${p}</div>`:""}
+    <div class="ckw">${kw}</div>
+    ${u.rig?`<div class="c-mod">+rig</div>`:""}
+  </div>`;}
+
+function pipHTML(p,i,up){return `<div class="pip${up?" up":""}" data-act="nerve" data-p="${p}" data-i="${i}"></div>`;}
+function pBar(p){
+  const s=G.S[p];
+  return `<div class="pbar${G.turnOwner===p?" act":""}${p?" foe":""}">
+    <span class="ptag" style="background:${s.ai?"#8a4030":"#3f7f8f"}">${s.ai?"CPU":"YOU"}</span>
+    <span class="pname">${s.name}</span>
+    ${s.shield?`<span class="stat" style="color:var(--good)">◎ SHIELD ${s.shield}</span>`:""}
+    ${s.disc?`<span class="stat" style="color:var(--amber)">−${s.disc.amt} COST ≤${s.disc.maxCost}</span>`:""}
+    ${p?`<span class="held" aria-label="${s.hand.length} cards in hand">${s.hand.slice(0,7).map(u=>cardHTML(u,{back:true,cls:"tiny"})).join("")}<span class="hcount"><b>${s.hand.length}</b>hand</span></span>`:""}
+    <div class="pips" role="img" aria-label="${nerveFlipped(p)} of ${NERVE} nerve pips flipped">
+      ${s.nerve.map((v,i)=>pipHTML(p,i,v)).join("")}</div>
+  </div>`;}
+
+function zoneRow(p){
+  const s=G.S[p],mine=p===0;
+  const list=s.crews.map(u=>{
+    let cls=[];
+    if(u.tapped)cls.push("tapped");
+    if(u.dizzy)cls.push("dizzy");
+    if(u.locked)cls.push("dim");
+    if(UI.atk&&atkAllowedFor(UI.atk).includes(u))cls.push("pick foe");
+    if(UI.selAct===u.uid)cls.push("sel");
+    const lbl=`${u.nm}, power ${pow(u)}${u.tapped?", tapped":""}${u.dizzy?", dizzy":""}${u.locked?", locked":""}`;
+    return `<div class="uc" data-act="crew" data-p="${p}" data-uid="${u.uid}" role="button" tabindex="0"
+      aria-label="${lbl}">${cardHTML(u,{cls:cls.join(" "),zone:"dock"})}</div>`;}).join("");
+  const empties=Array(Math.max(0,MAXCREW-s.crews.length)).fill(`<div class="slot empty" aria-hidden="true"></div>`).join("");
+  const ter=s.ter?`<div data-act="ter" data-p="${p}" data-uid="${s.ter.uid}" role="button" tabindex="0" aria-label="Terminus ${s.ter.nm}${s.ter.tapped?", tapped":""}">
+      ${cardHTML(s.ter,{cls:(s.ter.tapped?"tapped ":""),zone:"berth"})}</div>`
+   :`<div class="slot empty berth-empty" data-act="terzone" data-p="${p}" role="button" tabindex="0"
+      aria-label="Berth, empty"><span class="hint">BERTH</span></div>`;
+  return `<div class="rowline">
+    <div class="berthcol">${ter}</div>
+    <div class="zone crews" data-act="${mine?"dock":"dockfoe"}" data-p="${p}" aria-label="${mine?"Your":"Enemy"} Dock">
+      ${list}${empties}</div>
+    <div class="chipcol">
+      <button class="chip" data-act="wreck" data-p="${p}" aria-label="Wreck, ${s.wreck.length} cards, open"><b>${s.wreck.length}</b>Wreck</button>
+      <button class="chip" data-act="deck" data-p="${p}" aria-label="Deck, ${s.deck.length} cards left"><b>${s.deck.length}</b>Deck</button>
+    </div>
+  </div>`;}
+
+function handRow(){
+  const s=G.S[0];
+  const cards=s.hand.map((u,i)=>{
+    let cls=[];
+    if(UI.sel===u.uid)cls.push("sel");
+    const need=reqCost(0,u,"hand");
+    if(G.turnOwner!==0||!payable(0,need)||legalPlay(0,u))cls.push("dim");
+    return `<div data-act="hand" data-uid="${u.uid}" role="button" tabindex="0"
+      aria-label="${u.nm}, card ${i+1} of ${s.hand.length}, cost ${u.cost}${need?", pay "+need:""}">${cardHTML(u,{cls:cls.join(" "),zone:"hand"})}</div>`;}).join("");
+  return `<div class="handzone">
+    <div class="handmeta"><span class="n">${s.hand.length}</span> in hand
+      <span style="flex:1"></span>
+      <span>${s.hand.length?`swipe · tap a card to play`:""}</span>
+      <button class="btn sm" data-act="togglehand" aria-pressed="${UI.hideHand}">${UI.hideHand?"show":"hide"}</button>
+      <button class="btn sm logbtn" data-act="drawer" aria-label="Open salvage log: ${(G.logs.slice(-1)[0]||{t:''}).t.replace(/"/g,"'").slice(0,60)}">Log</button></div>
+    <div class="handwrap" id="hand">${UI.hideHand?`<span class="lk">hand hidden</span>`:cards}</div>
+  </div>`;}
+
+const UI={
+ sel:null,atk:null,selAct:null,hideHand:false,drawer:false,busy:false,
+ modal:null,modalRoot:null,sayTxt:"",zoom:null,
+ pick:UI_pick,pay:UI_pay,scope:UI_scope,priority:UI_priority,gameOver:UI_gameOver,ask:sheet,
+ el(){return document.getElementById("app");},
+ hint(t){uiHint(t);if(!G||G.rendering)this.render();},
+ say(t){this.sayTxt=t;this.render();},
+ bump(){const e=document.querySelector(".pbar.act");if(e){e.classList.remove("shake");void e.offsetWidth;e.classList.add("shake");}},
+ fx(t){const f=document.getElementById("fx");if(!f)return;f.textContent=t;f.classList.remove("on");void f.offsetWidth;f.classList.add("on");},
+
+ async render(){
+  if(!G)return;
+  try{await this.paint();}
+  catch(e){console.error("render failed",e);if(G)G.hint="Render error: "+e.message;}},
+ async paint(){
+  if(!this.modalRoot){this.modalRoot=document.createElement("div");this.modalRoot.id="modals";document.body.appendChild(this.modalRoot);}
+  if(!document.getElementById("fx")){const f=document.createElement("div");f.id="fx";f.className="fx";document.body.appendChild(f);}
+  const busy=!!this.modal;
+  const lastLog=(G.logs.slice(-1)[0]||{t:""}).t;
+  this.el().innerHTML=`
+   <div class="table">
+     ${pBar(1)}
+     <div class="mid">
+       ${zoneRow(1)}
+       <div class="gap"><span class="tidewatch">tideline</span>
+         <div class="prompt" aria-live="polite"><span class="msg">${G.hint||""}</span></div></div>
+       ${zoneRow(0)}
+     </div>
+     ${handRow()}
+     <div class="actionbar">${this.actionStrip()}</div>
+     <div class="rotate" role="note">Turn the phone upright for a taller table
+       <button class="btn sm" data-act="rotatex" aria-label="Dismiss">OK</button></div>
+   </div>
+   <aside class="rail" role="complementary" aria-label="Game log and menu">
+     <div style="display:flex;align-items:center;gap:8px">
+       <span class="ptag" style="background:var(--steel)">LOG</span>
+       <span style="flex:1"></span>
+       <button class="btn sm" data-act="drawer" aria-label="Close log" style="min-width:44px">✕</button>
+     </div>
+     <div class="say"><b>MARROW</b>${this.sayTxt||"<span style='color:#5d747c'>…</span>"}</div>
+     <div style="display:flex;gap:6px;flex-wrap:wrap">
+       <button class="btn sm" data-act="help">Rules</button>
+       <button class="btn sm" data-act="deckbuild">Deck</button>
+       <button class="btn sm dgr" data-act="resign">Resign</button>
+     </div>
+     <div class="logbox"><div class="lh">Salvage log</div>
+       ${G.logs.slice(-70).map(l=>`<p class="${l.cls}">${l.t}</p>`).join("")}</div>
+   </aside>
+   <div class="scrim" data-act="drawer"></div>
+   ${this.detailPanel()}`;
+  document.body.classList.toggle("drawer",!!this.drawer);
+  if(busy&&this.modal.el)this.modal.el.style.zIndex=44;
+  const lb=this.el().querySelector(".logbox");if(lb)lb.scrollTop=lb.scrollHeight;
+ },
+
+ /* one obvious primary action, everything else secondary; thumb-height from the bottom edge */
+ actionStrip(){
+  if(G.over)return "";
+  const mine=G.turnOwner===0&&!G.S[0].ai;
+  const btns=[];
+  if(mine){
+   const u=UI.sel?hand(0).find(c=>c.uid===UI.sel):null;
+   const a=UI.atk?crews(0).find(c=>c.uid===UI.atk):null;
+   const act=UI.selAct?allCrews().concat([G.S[0].ter].filter(Boolean)).find(c=>c.uid===UI.selAct):null;
+   if(u){
+    const need=reqCost(0,u,"hand");
+    const label=u.kind==="crew"?"Summon":u.kind==="rig"?"Install":u.kind==="ter"?"Open":"Cast";
+    const bad=legalPlay(0,u)||(!payable(0,need)?"not enough Cost in hand":"");
+    btns.push(`<button class="btn go" data-act="playcard" ${bad?"disabled":""}>${label}${need?` · pay ${need}`:""}</button>`);
+    btns.push(`<button class="btn" data-act="unselsel">Cancel</button>`);
+    if(bad)btns.push(`<button class="btn" data-act="zoomsel" aria-label="Read this card">Read card</button>`);
+   }else if(a){
+    const t=atkTargets(a);
+    btns.push(`<button class="btn go" data-act="atknerve" ${t.nerve?"":"disabled"}>Strike Nerve</button>`);
+    btns.push(`<button class="btn" data-act="unselsel">Cancel</button>`);
+    if(!t.nerve)btns.push(`<span class="hintline">Bulwark is in the way — tap a glowing enemy Crew</span>`);
+    else if(t.units.length)btns.push(`<span class="hintline">or tap an enemy Crew to strike it</span>`);
+   }else if(act&&canAct(act)){
+    btns.push(`<button class="btn go" data-act="useact" data-uid="${act.uid}">Use · ${act.nm}</button>`);
+    btns.push(`<button class="btn" data-act="unselsel">Cancel</button>`);
+   }else{
+    const playable=hand(0).filter(c=>!legalPlay(0,c)&&payable(0,reqCost(0,c,"hand"))).length;
+    const ready=readyToAttack(0).length;
+    btns.push(`<span class="hintline">${playable||ready?`${playable} playable · ${ready} ready to strike`:"nothing left to do down here"}</span>`);
+   }
+   btns.push(`<button class="btn end" data-act="end">End turn</button>`);
+  }else btns.push(`<span class="hintline"><b>${G.S[G.turnOwner].name}</b> is working…</span>`);
+  return btns.join("");},
+
+ detailPanel(){
+  if(!this.zoom)return "";
+  const u=this.zoom;
+  const d=u.def;
+  const kwlist=(d.kw||[]).map(k=>`${k}`).join(" · ")||"—";
+  return `<div class="veil detail" data-act="zoomclose"><div class="sheet body" style="cursor:default" onclick="event.stopPropagation()">
+    <div>${cardHTML(u,{cls:"big"})}</div>
+    <div style="flex:1;min-width:240px">
+      <h2>${u.nm}</h2>
+      <p class="txt" style="color:var(--mute)">${d.kind==="crew"?"CREW":d.kind==="rig"?"RIG":d.kind==="ter"?"TERMINUS":"MANOEUVRE"}
+       · ${d.fac==="fr"?"Rust":d.fac==="ft"?"Tide":d.fac==="fg"?"Grit":"Neutral"} · Cost ${u.cost}${u.kind==="crew"?` · BASE POWER ${u.base}`:""}</p>
+      <h3>Keywords</h3><p class="txt">${kwlist}</p>
+      <h3>Rules text</h3><p class="txt">${d.tex||""}</p>
+      ${d.act?`<div style="margin-top:10px"><button class="btn end" data-act="${canAct(u)?`useact`:`none`}" data-uid="${u.uid}">Activate One-Shot</button></div>`:""}
+      <div class="acts"><button class="btn" data-act="zoomclose2">Close</button></div>
+    </div></div></div>`;}
+};
+
+
+/* One player action in flight at a time: a double tap must not open two payment
+   sheets, because the second one is never answered and the turn deadlocks. */
+async function guardAct(fn){
+  if(UI.busy)return;
+  UI.busy=true;
+  const tbl=document.querySelector(".table");
+  if(tbl)tbl.setAttribute("aria-busy","true");
+  try{await fn();}
+  catch(e){clog("Action failed: "+(e&&e.message||e),"sys");console.error(e);}
+  finally{UI.busy=false;if(tbl)tbl.removeAttribute("aria-busy");await UI.render();}}
+
+/* ---------- targeting helpers for click flow ---------- */
+function unitByUid(uid){for(const p of[0,1]){const u=crews(p).find(c=>c.uid===uid);if(u)return u;
+  if(G.S[p].ter&&G.S[p].ter.uid===uid)return G.S[p].ter;
+  const w=wreck(p).find(c=>c.uid===uid);if(w)return w;
+  const h=hand(p).find(c=>c.uid===uid);if(h)return h;}return null;}
+function asUnit(x){return (x&&typeof x==="object")?x:unitByUid(x);}
+function atkAllowedFor(x){const a=asUnit(x);return a?atkTargets(a).units:[];}
+function nerveAllowedFor(x){const a=asUnit(x);return !!a&&atkTargets(a).nerve;}
+function rigAllowedFor(r){const u=asUnit(r);return u&&u.kind==="rig"?rigTargets(0):[];}
+
+/* ---------- click handling ---------- */
+let endResolve=null;
+document.addEventListener("click",async e=>{
+  const t=e.target.closest("[data-act]");
+  if(!t||!G)return;
+  try{ await dispatch(t,e); }
+  catch(err){ clog("That did not work: "+(err&&err.message||err),"sys"); console.error(err); await UI.render(); }
+});
+async function dispatch(t,e){
+  const act=t.dataset.act,uid=+t.dataset.uid,p=+t.dataset.p;
+  const myTurn=G.turnOwner===0&&!G.S[0].ai&&!UI.modal&&!G.over;
+
+  if(act==="hand"){const u=hand(0).find(c=>c.uid===uid);if(!u)return;
+    UI.sel=UI.sel===uid?null:uid;UI.atk=null;UI.selAct=null;
+    UI.hint(u.kind==="crew"?`Pay Cost ${reqCost(0,u,"hand")} by discarding from hand, then put ${u.nm} on the Dock.`
+      :u.kind==="rig"?`Bolt ${u.nm} onto one of your bare Crews.`
+      :u.kind==="ter"?`Open ${u.nm} in your Berth.`
+      :`Cast ${u.nm}.`);
+    return UI.render();}
+
+  if(act==="playcard"){const u=hand(0).find(c=>c.uid===UI.sel);if(!u)return;
+    UI.sel=null;UI.atk=null;await guardAct(()=>playCard(0,u,"hand"));return UI.render();}
+
+  if(act==="unselsel"){UI.sel=null;UI.atk=null;UI.selAct=null;UI.hint("Selection cleared.");return UI.render();}
+  if(act==="useact"){const u=unitByUid(uid);
+    if(u&&canAct(u)){UI.selAct=null;await guardAct(()=>useAct(u));}return UI.render();}
+  if(act==="togglehand"){UI.hideHand=!UI.hideHand;return UI.render();}
+  if(act==="drawer"){UI.drawer=!UI.drawer;return UI.render();}
+  if(act==="rotatex"){document.querySelectorAll(".rotate").forEach(n=>n.hidden=true);return;}
+  if(act==="zoomsel"){const u=hand(0).find(c=>c.uid===UI.sel);if(u){UI.zoom=u;return UI.render();}return;}
+  if(act==="zoomclose"||act==="zoomclose2"){if(e.target.closest(".sheet")&&act==="zoomclose")return;
+    UI.zoom=null;return UI.render();}
+  if(act==="cardface"){const u=unitByUid(uid);if(u){UI.zoom=u;return UI.render();}return;}
+
+  if(act==="atknerve"){const a=crews(0).find(c=>c.uid===UI.atk);
+    if(a&&myTurn){UI.atk=null;
+      if(nerveAllowedFor(a))await guardAct(()=>attackWith(a,"nerve"));
+      else UI.hint("A Bulwark is in the way — Ram or clear it first.");}
+    return UI.render();}
+
+  if(act==="nerve"&&p===1){const a=crews(0).find(c=>c.uid===UI.atk);
+    if(a&&myTurn&&nerveAllowedFor(a)){UI.atk=null;await guardAct(()=>attackWith(a,"nerve"));}
+    else if(a)UI.hint("That Nerve is shielded by Bulwark.");
+    return UI.render();}
+
+  if(act==="crew"){const u=unitByUid(uid);if(!u)return;
+    if(u.owner===0&&myTurn){
+      if(UI.atk&&UI.atk!==uid){UI.atk=readyToAttack(0).includes(u)?uid:null;return UI.render();}
+      if(u.def.act&&canAct(u)){UI.selAct=uid;UI.hint(`${u.nm}: One-Shot available.`);return UI.render();}
+      if(readyToAttack(0).includes(u)){UI.atk=uid;UI.sel=null;
+        UI.hint(`${u.nm} is marked up — pick a target: an enemy Crew or their Nerve.`);return UI.render();}
+      UI.zoom=u;return UI.render();}
+    if(u.owner===1&&myTurn&&UI.atk){const a=crews(0).find(c=>c.uid===UI.atk);
+      if(a&&atkAllowedFor(a).includes(u)){UI.atk=null;await guardAct(()=>attackWith(a,u));return UI.render();}
+      UI.hint("Bulwark is in the way — you cannot reach that one.");return UI.render();}
+    UI.zoom=u;return UI.render();}
+
+  if(act==="ter"){const u=unitByUid(uid);if(!u)return;
+    if(u.owner===0&&myTurn){if(u.def.act&&canAct(u)){UI.selAct=uid;UI.hint("One-Shot ready on your Terminus.");}
+      else UI.zoom=u;}
+    else UI.zoom=u;
+    return UI.render();}
+
+  if(act==="dock"){if(UI.sel){const u=hand(0).find(c=>c.uid===UI.sel);
+      if(u&&u.kind==="crew"){UI.sel=null;await guardAct(()=>playCard(0,u,"hand"));return UI.render();}}
+    return;}
+
+  if(act==="wreck"){if(UI.busy)return;return UI.wreckSheet(p);}
+  if(act==="deck"){UI.hint(`${G.S[p].name} has ${G.S[p].deck.length} cards left ashore.`);return UI.render();}
+  if(act==="end"){if(myTurn&&endResolve){const r=endResolve;endResolve=null;r();}return;}
+  if(act==="help")return UI.helpSheet();
+  if(act==="deckbuild")return UI.deckSheet();
+  if(act==="resign"){G.over={win:1,why:"You cut your own cable."};return UI.gameOver(G.over);}
+}
+
+/* ---------- wreck browser ---------- */
+UI.wreckSheet=async function(p){
+  const w=wreck(p).slice().reverse();
+  const mine=p===0;
+  const body=w.length?`<div class="grid">${w.map((u,i)=>`<div class="cell">
+      ${cardHTML(u,{cls:"mini"})}<div class="cn">${u.nm}</div>
+      <div class="cc">cost ${u.cost}${u.def.dredgeCost?` · dredge ${Math.max(1,u.cost-u.def.dredgeCost)}`:""}</div>
+      ${mine&&u.def.dredgeCost&&G.turnOwner===0&&!UI.modal?`<button class="btn sm go" data-dredge="${u.uid}">Dredge</button>`:""}
+    </div>`).join("")}</div>`:`<p class="lk">The water is clear down there. Nothing in the Wreck yet.</p>`;
+  const box=await sheet({title:`${G.S[p].name} — Wreck (${w.length})`,body,wide:true,
+    acts:[{label:"Close"}]});
+  document.querySelectorAll("[data-dredge]").forEach(b=>b.onclick=async()=>{
+    const u=wreck(0).find(c=>c.uid===+b.dataset.dredge);
+    UI.modal.close();UI.modal=null;
+    if(u)await guardAct(()=>playCard(0,u,"wreck"));
+    UI.render();});
+};
+
+/* ---------- rulebook ---------- */
+UI.helpSheet=()=>sheet({title:"How Slackwater rows",wide:true,body:`
+  <h3>The two numbers</h3>
+  <p><b>Cost</b> (white) is what you pay by discarding cards from hand whose printed Cost totals that much or more.
+  <b>Power</b> (amber) is what a Crew hits and takes.</p>
+  <h3>The turn</h3>
+  <p>Draw 1 → summon Crews, open a Terminus, bolt on Rigs, cast Manoeuvres, and attack with ready Crews, in any order
+  → End turn. Crews arrive <b>Dizzy</b> (unless noted) and must wait one turn.</p>
+  <h3>Combat</h3>
+  <p>Choose a target. Each Crew whose opposing POWER is greater than or equal to its own is destroyed — so equal POWER trades both ways.
+  An unblocked hit flips one <b>Nerve pip</b> and spills the top card of your Deck into your Wreck.</p>
+  <h3>Winning</h3>
+  <p>Flip all 8 of their Nerve pips, or make them draw from an empty Deck.</p>
+  <h3>Keywords</h3>
+  <p><b>Bulwark</b> — enemy Crews must deal with it before your Nerve or your other Crews.<br>
+  <b>Ram</b> — may strike the Nerve even behind Bulwark.<br>
+  <b>Dredge n</b> — playable from your Wreck for n less Cost.<br>
+  <b>Scope n</b> — look at the top n cards of your Deck when summoned; you may keep one.<br>
+  <b>Precision</b> — a bonus if the Cost was paid exactly, with nothing overpaid.<br>
+  <b>Unity</b> — scales with friendly Crews sharing a tag.<br>
+  <b>Brace</b> — extra POWER during your opponent's turn.<br>
+  <b>Siphon</b> — draw when this Crew flips a Nerve pip.<br>
+  <b>Deathspill</b> — spills the top Deck card into your Wreck when destroyed.<br>
+  <b>Low Nerve</b> — stronger while 4 or more of your pips are flipped.<br>
+  <b>One-Shot</b> — an activated ability, once per turn, that taps the card.<br>
+  <b>Flash</b> — a Manoeuvre you may cast in the marked window during the opponent's turn.</p>`,
+  acts:[{label:"Got it",cls:"go"}]});
+
+/* ---------- deck editor ---------- */
+const LS="slackwater.deck.v1";
+function currentDeck(){try{const d=JSON.parse(localStorage.getItem(LS));
+  if(Array.isArray(d)&&d.length===DECK_SIZE)return d;}catch(e){}
+  return PRESETS.grit.ids.slice();}
+function saveDeck(d){localStorage.setItem(LS,JSON.stringify(d));}
+function foePreset(){const k=Object.keys(PRESETS);return k[Math.floor(Math.random()*k.length)];}
+function deckCount(d){const m={};d.forEach(i=>m[i]=(m[i]||0)+1);return m;}
+
+UI.deckSheet=async function(){
+  const cur=currentDeck();const cnt=deckCount(cur);
+  let list=CARDS.slice().sort((a,b)=>a.fac.localeCompare(b.fac)||a.cost-b.cost);
+  const rows=()=>`<div class="grid">${list.map(c=>`<div class="cell" style="align-items:stretch">
+      <div class="cn">${c.nm}</div>
+      <div class="cc"><span>${c.fac==="fr"?"Rust":c.fac==="ft"?"Tide":c.fac==="fg"?"Grit":"Neutral"}</span><span>cost ${c.cost}</span>${c.pow?`<span>P ${c.pow}</span>`:""}</div>
+      <div class="stepper" data-id="${c.id}">
+        <button data-d="-1">−</button><b class="n">${cnt[c.id]||0}</b><button data-d="1">+</button>
+        <span class="cc">max ${MAXCOPY}</span></div>
+    </div>`).join("")}</div>`;
+  await sheet({title:`Salvage manifest — ${cur.length}/${DECK_SIZE}`,wide:true,body:rows()+
+    `<p class="lk" style="margin-top:10px">Two copies of anything. Save with what you have; the match starts from the Deck screen.</p>`,
+    acts:[
+     {label:"Rust Fleet",fn:(el,close)=>{cur.length=0;PRESETS.rust.ids.forEach(i=>cur.push(i));}},
+     {label:"Tide Ledger",fn:el=>{cur.length=0;PRESETS.tide.ids.forEach(i=>cur.push(i));}},
+     {label:"Ballast Choir",fn:el=>{cur.length=0;PRESETS.grit.ids.forEach(i=>cur.push(i));}},
+     {label:"Save manifest",cls:"go",fn:(el,close)=>{
+        if(cur.length!==DECK_SIZE){el.querySelector(".lk").textContent=`Needs exactly ${DECK_SIZE} cards — you have ${cur.length}.`;return;}
+        saveDeck(cur.slice());close();UI.hint("Manifest saved.");UI.render();}}
+    ]});
+  const root=UI.modal?UI.modal.el:document;
+  root.addEventListener("click",e=>{
+    const b=e.target.closest("[data-d]");if(!b)return;
+    const id=b.closest(".stepper").dataset.id,d=+b.dataset.d;
+    if(d>0){if((cnt[id]||0)>=MAXCOPY)return;if(cur.length>=DECK_SIZE)return;}
+    if(d<0){const i=cur.indexOf(id);if(i<0)return;cur.splice(i,1);delete cnt[id];}
+    else{cur.push(id);cnt[id]=(cnt[id]||0)+1;}
+    root.querySelector(".stepper[data-id='"+id+"'] .n").textContent=cnt[id]||0;
+    const hdr=root.parentElement.querySelector("h2");
+    if(hdr)hdr.textContent=`Salvage manifest — ${cur.length}/${DECK_SIZE}`;});
+  return UI_modalTrap();};
+function UI_modalTrap(){/* the sheet resolves when an act button is pressed; stepper clicks are absorbed */}
+
+/* ---------- keyboard (PC) ---------- */
+document.addEventListener("keydown",async e=>{
+  if(!G||G.over)return;
+  try{ await keys(e); }catch(err){ clog("Key did not work: "+(err&&err.message||err),"sys"); console.error(err); }
+});
+async function keys(e){
+  const focused=document.activeElement;
+  if(e.key==="Enter"&&focused&&focused.closest&&focused!==document.body){
+    const t=focused.closest("[data-act]");
+    if(t&&t!==focused){e.preventDefault();t.click();return;}
+    if(t&&!UI.busy&&(t.dataset.act==="crew"||t.dataset.act==="ter"||t.dataset.act==="hand")){
+      e.preventDefault();t.click();return;}}
+  if(e.key==="Escape"){
+    if(UI.modal){UI.modal.close(null);return;}
+    if(UI.zoom){UI.zoom=null;return UI.render();}
+    if(UI.drawer){UI.drawer=false;return UI.render();}
+    UI.sel=UI.atk=UI.selAct=null;return UI.render();}
+  if(UI.modal||UI.zoom)return;
+  const mine=G.turnOwner===0&&!G.S[0].ai;
+  if(!mine)return;
+  if(e.key===" "||e.key.toLowerCase()==="e"){
+    const onTile=document.activeElement&&document.activeElement.closest&&document.activeElement.closest("[data-act]");
+    if(onTile&&onTile.dataset.act!=="end")return;      // Space belongs to the focused tile
+    e.preventDefault();await endMyTurn();return;}
+  if(/^[1-9]$/.test(e.key)){
+    const u=hand(0)[+e.key-1];
+    if(u){UI.sel=UI.sel===u.uid?null:u.uid;UI.atk=null;UI.selAct=null;
+      UI.hint(u.kind==="crew"?`Cost ${reqCost(0,u,"hand")} — press Enter to summon ${u.nm}.`:`Press Enter to cast ${u.nm}.`);
+      UI.render();}
+    return;}
+  if(e.key==="Enter"&&UI.sel){e.preventDefault();const u=hand(0).find(c=>c.uid===UI.sel);
+    UI.sel=null;if(u)await guardAct(()=>playCard(0,u,"hand"));return UI.render();}
+}
+async function endMyTurn(){
+  if(endResolve){UI.sel=UI.atk=UI.selAct=null;UI.hint("Handing over.");const r=endResolve;endResolve=null;r();}}
+
+/* ---------- match loop ---------- */
+function humanTurn(){return new Promise(r=>{endResolve=r;});}
+async function matchLoop(){
+  while(!G.over){
+    const p=G.turnOwner;
+    await beginTurn(p);
+    if(G.over)break;
+    if(G.S[p].ai)await AI.playTurn(p);
+    else{UI.hint("Your turn — summon, rig, and strike. End turn when you're done.");await humanTurn();}
+    if(G.over)break;
+    await endTurn(p);
+    G.turnOwner=other(p);}
+  UI.sel=null;UI.atk=null;await UI.render();}
+
+function startGame(deck0,deck1,foe){
+  newGame(deck0,deck1,foe,0);
+  UI.hideHand=false;UI.sel=null;UI.atk=null;UI.zoom=null;UI.say(talk("open"));
+  UI.render();matchLoop();}
+
+/* ---------- boot ---------- */
+function boot(){
+  if(!document.getElementById("modals")){const m=document.createElement("div");m.id="modals";document.body.appendChild(m);}
+  sheet({title:"SLACKWATER",body:`
+    <p class="txt">A salvage-crew card game. Eight <b>Nerve pips</b> each, a
+    <b>Wreck</b> full of second chances, and a river flat that decides who tows whom.</p>
+    <div class="hl"><b>Your deck:</b> <span id="bsel">Ballast Choir</span>
+      <button class="btn sm" data-mani="1">Change manifest</button></div>
+    <div class="acts" style="justify-content:flex-start;margin-top:12px">
+      ${Object.entries(PRESETS).map(([k,v])=>`<button class="btn sm" data-pr="${k}">${v.nm}</button>`).join("")}
+    </div>`,
+    acts:[{label:"Rules",fn:(el,close)=>{close();UI.helpSheet();}},
+          {label:"Row out",cls:"go"}]})
+   .then(()=>{startGame(currentDeck(),PRESETS[foePreset()].ids,"Marrow");});
+  document.getElementById("modals").addEventListener("click",e=>{
+    const pr=e.target.closest("[data-pr]");
+    if(pr){saveDeck(PRESETS[pr.dataset.pr].ids.slice());
+      document.getElementById("bsel").textContent=PRESETS[pr.dataset.pr].nm;
+      document.querySelectorAll("[data-pr]").forEach(b=>b.classList.remove("go"));
+      pr.classList.add("go");}
+    if(e.target.closest("[data-mani]"))UI.deckSheet();});
+}
+function tr(m){if(!window.__TR)return;(window.__TRACE=window.__TRACE||[]).push(m);if(window.__TRACE.length>400)window.__TRACE.shift();}
+
+/* ---------- headless balance harness: open with ?sim=50 ---------- */
+async function simulate(n){
+  const keep={render:UI.render,hint:UI.hint,say:UI.say,fx:UI.fx,bump:UI.bump,over:UI.gameOver},kth=AI.think;
+  UI.render=async()=>{};UI.hint=()=>{};UI.say=()=>{};UI.fx=()=>{};UI.bump=()=>{};UI.gameOver=async()=>{};AI.think=()=>Promise.resolve();
+  const restore=()=>{Object.assign(UI,keep);UI.gameOver=keep.over;AI.think=kth;};
+  const key=currentDeck();
+  const res={games:0,p1:0,p2:0,draw:0,errs:[],turns:[],byMatchup:{},why:{}};
+  const pres=Object.keys(PRESETS);
+  for(let i=0;i<n;i++){
+    const a=pres[i%pres.length],b=pres[(i+1)%pres.length];
+    window.__SIMPROGRESS={game:i,a,b,turn:0,phase:"start"};
+    try{
+      newGame(PRESETS[a].ids,PRESETS[b].ids,"Bot",0);
+      G.S[0].ai=true;G.S[1].ai=true;
+      while(!G.over){
+        const p=G.turnOwner;
+        window.__SIMPROGRESS={game:i,a,b,turn:G.turnNo,phase:"begin",p};
+        await beginTurn(p);
+        if(G.over)break;
+        window.__SIMPROGRESS={game:i,a,b,turn:G.turnNo,phase:"play",p};
+        await AI.playTurn(p);
+        if(G.over)break;
+        window.__SIMPROGRESS={game:i,a,b,turn:G.turnNo,phase:"end",p};
+        await endTurn(p);
+        G.turnOwner=other(p);
+        if(G.turnNo>140){G.over={win:-1,why:"stalemate"};break;}}
+      res.games++;res.turns.push(G.turnNo);
+      if(G.over&&G.over.win===0)res.p1++;else if(G.over&&G.over.win===1)res.p2++;else res.draw++;
+      res.why[(G.over&&G.over.why==='Deck-out'||G.over&&/deck/i.test(G.over.why||''))?'deckout':(G.over&&/stalemate/.test(G.over.why)?'stalemate':'nerve')]=1+(res.why[(G.over&&/deck/i.test(G.over.why||''))?'deckout':(G.over&&/stalemate/.test(G.over.why)?'stalemate':'nerve')]||0);
+      const k=a+" vs "+b;res.byMatchup[k]=(res.byMatchup[k]||0)+(G.over.win===1?1:0);}
+    catch(err){res.errs.push(String(err&&err.message||err));}
+  }
+  res.avgTurns=+(res.turns.reduce((a,b)=>a+b,0)/Math.max(1,res.games)).toFixed(1);
+  res.pips=NERVE;
+  restore();saveDeck(key);
+  return res;}
+
+/* debug handle for automated playtesting */
+window.__dbg=()=>G?{hint:G.hint,turn:G.turnNo,over:G.over&&G.over.why,n0:nerveFlipped(0),n1:nerveFlipped(1),
+ hand:hand(0).length,dock:crews(0).length,foeDock:crews(1).length,
+ logs:G.logs.slice(-8).map(l=>l.t)}:{noGame:true};
+function start(){
+  if(/[?&]sim=/.test(location.search)){
+    const n=+((location.search.match(/sim=(\d+)/)||[])[1]||20);
+    if(/[?&]tr=/.test(location.search))window.__TR=true;
+    window.__NOMODALS=true; // any human modal request in sim = a bug
+    // strip all presentation + pacing so the rules engine runs flat-out
+    UI.render=async()=>{};UI.hint=()=>{};UI.say=()=>{};UI.fx=()=>{};UI.bump=()=>{};
+    UI.gameOver=async()=>{};UI.modal={el:{style:{}},close(){}};
+    AI.think=()=>Promise.resolve();
+    document.getElementById("app").innerHTML=
+      "<pre id=simout style='color:#9fb4bb;font:12px/1.5 ui-monospace,monospace;padding:16px'>simulating…</pre>";
+    simulate(n).then(r=>{document.getElementById("simout").textContent=JSON.stringify(r,null,1);
+      console.log("SIM DONE "+JSON.stringify(r));});
+  }else boot();}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start);else start();
+
+
+
+</script>
+</body>
+</html>
