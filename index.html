@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#07080f">
+<meta name="description" content=" Advance Clash — เกมการ์ดเดินช่องสนาม ปะทะด้วยพลังบุก (PWA, เล่นออฟไลน์ได้)">
+<title>ADVANCE CLASH — เกมการ์ดชิงช่องสนาม</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Bai+Jamjuree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+<div id="shell">
+
+  <!-- ============ TOP BAR ============ -->
+  <header id="topbar">
+    <div class="brand">
+      <span class="brand-mark">AC</span>
+      <div class="brand-txt">
+        <b>ADVANCE&nbsp;CLASH</b>
+        <i>การ์ดชิงช่องสนาม · v0.1</i>
+      </div>
+    </div>
+    <div class="turn-chip" id="turnChip">เทิร์น 1</div>
+    <div class="top-acts">
+      <button class="icon-btn" id="btnRules" title="กติกา">?</button>
+      <button class="icon-btn" id="btnLog" title="บันทึกการแข่ง">≡</button>
+      <button class="icon-btn" id="btnMenu" title="หน้าหลัก">⌂</button>
+    </div>
+  </header>
+
+  <!-- ============ OPPONENT PLATE ============ -->
+  <section class="plate foe" id="plateFoe">
+    <div class="plate-id">
+      <span class="plate-tag">ศัตรู</span>
+      <b id="foeDeck">—</b>
+    </div>
+    <div class="plate-stats">
+      <span class="stat core"><i>ฐาน</i><b id="foeCoreHP">24</b></span>
+      <span class="stat lv"><i>Lv</i><b id="foeCoreLv">1</b></span>
+      <span class="stat force"><i>พลังขับ</i><b id="foeForce">0</b></span>
+      <span class="stat"><i>สมุด</i><b id="foeDeckN">24</b></span>
+      <span class="stat"><i>แผล</i><b id="foeDamageN">0</b></span>
+      <span class="stat"><i>มือ</i><b id="foeHandN">4</b></span>
+    </div>
+    <div class="hpbar"><div class="hpbar-fill" id="foeHpFill"></div></div>
+  </section>
+
+  <!-- ============ BOARD ============ -->
+  <main id="arena">
+    <div class="lane-label foe-label">เขตศัตรู · ROW 1–2</div>
+    <div id="board" class="board"></div>
+    <div class="lane-label own-label">เขตคุณ · ROW 4–5</div>
+  </main>
+
+  <!-- ============ PLAYER PLATE + ACTIONS ============ -->
+  <section class="plate own" id="plateOwn">
+    <div class="plate-id">
+      <span class="plate-tag">คุณ</span>
+      <b id="ownDeck">—</b>
+    </div>
+    <div class="plate-stats">
+      <span class="stat core"><i>ฐาน</i><b id="ownCoreHP">24</b></span>
+      <span class="stat lv"><i>Lv</i><b id="ownCoreLv">1</b></span>
+      <span class="stat force"><i>พลังขับ</i><b id="ownForce">0</b></span>
+      <span class="stat"><i>สมุด</i><b id="ownDeckN">24</b></span>
+      <span class="stat"><i>trash</i><b id="ownDropN">0</b></span>
+    </div>
+    <div class="hpbar"><div class="hpbar-fill" id="ownHpFill"></div></div>
+    <div class="plate-acts">
+      <button class="mini-btn" id="btnPromote">▲ ยกระดับฐาน</button>
+      <button class="mini-btn" id="btnScar">◤ แปลงรอยแผล</button>
+      <button class="mini-btn ghost" id="btnCancel">ยกเลิก</button>
+    </div>
+  </section>
+
+  <!-- ============ HAND ============ -->
+  <section id="handWrap">
+    <div class="hand-head">
+      <span>มือถือ <b id="handCount">0/6</b></span>
+      <span class="hint" id="hint">เลือกการ์ดลงแข่ง · แตะunit เพื่อเดิน/โจมตี</span>
+    </div>
+    <div id="hand" class="hand"></div>
+  </section>
+
+  <!-- ============ GUARD PROMPT ============ -->
+  <div id="guardVeil" class="guard-veil hidden"></div>
+  <div id="guardBar" class="guard-bar hidden">
+    <div class="guard-txt"><b>ศัตรูโจมตี!</b> เลือกพลังงานกัน (จ่ายพลังขับ → +2 พลังกันต่อ 1)</div>
+    <div class="guard-opts" id="guardOpts"></div>
+  </div>
+
+  <!-- ============ LOG DRAWER ============ -->
+  <aside id="logDrawer">
+    <div class="log-head"><b>บันทึกการแข่ง</b><button class="icon-btn" id="btnLogClose">×</button></div>
+    <div id="logBody" class="log-body"></div>
+  </aside>
+
+  <!-- ============ MODALS ============ -->
+  <div class="modal-veil hidden" id="veil">
+    <button class="icon-btn modal-x" id="btnModalX" title="ปิด">×</button>
+    <div class="modal" id="modalHome">
+      <h1>ADVANCE<br><span>CLASH</span></h1>
+      <p class="tagline">เกมการ์ดวางunit บนสนาม 4×5 — <b>เดินระหว่างช่อง</b> เพื่อยิงทะลุเข้าฐานศัตรู</p>
+      <div class="pick">
+        <label>เด็คของคุณ
+          <select id="selOwnDeck"></select>
+        </label>
+        <label>เด็คศัตรู
+          <select id="selFoeDeck"></select>
+        </label>
+        <label>ฝ่ายเริ่มก่อน
+          <select id="selFirst">
+            <option value="p0">คุณเริ่ม (ได้จังหวะก่อน)</option>
+            <option value="p1">AI เริ่ม (ได้เปรียบรับ-โต้กลับ)</option>
+          </select>
+        </label>
+      </div>
+      <button class="cta" id="btnStart">เข้าสนามแข่ง</button>
+      <div class="home-links">
+        <button class="link-btn" id="btnRules2">อ่านกติกาทั้งหมด</button>
+        <button class="link-btn" id="btnImport">วิธีใส่การ์ดของคุณ</button>
+      </div>
+      <p class="seedline">seed <b id="seedTag">—</b> · ruleset v0.1 (รออัปเดตตาม rulebook ของคุณ)</p>
+    </div>
+
+    <div class="modal hidden" id="modalRules"></div>
+    <div class="modal hidden" id="modalOver">
+      <h2 id="overTitle">—</h2>
+      <p id="overDetail" class="tagline"></p>
+      <div class="home-links">
+        <button class="cta" id="btnAgain">แข่งอีกครั้ง</button>
+        <button class="link-btn" id="btnOverLog">ดูบันทึกการแข่ง</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="js/data.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
